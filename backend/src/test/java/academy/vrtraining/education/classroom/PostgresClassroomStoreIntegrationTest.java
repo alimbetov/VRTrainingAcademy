@@ -36,6 +36,37 @@ class PostgresClassroomStoreIntegrationTest {
             statement.setString(4, "UNKNOWN");
             assertThrows(java.sql.SQLException.class, statement::executeUpdate);
         }
+        // Device activation: trusted admin consent and possession proof,
+        // persisted atomically in real PostgreSQL.
+        var pair = java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        var deviceStore = new academy.vrtraining.platform.device.PostgresDeviceActivationStore(url, user, password);
+        var rights = new academy.vrtraining.platform.device.DeviceActivationService.AdministratorAuthorization() {
+            public boolean mayActivateDevice(String teacher, String tenant) {
+                return teacher.equals("teacher-1") && tenant.equals("school-1");
+            }
+            public boolean mayRevokeDevice(String teacher, String tenant) {
+                return mayActivateDevice(teacher, tenant);
+            }
+        };
+        var activation = new academy.vrtraining.platform.device.DeviceActivationService(
+                deviceStore, rights, java.time.Clock.fixed(Instant.parse("2026-11-10T12:00:00Z"),
+                        java.time.ZoneOffset.UTC), new java.security.SecureRandom(), new byte[32]);
+        var request = activation.begin(pair.getPublic());
+        assertThrows(java.security.GeneralSecurityException.class, () ->
+                activation.approve("teacher-1", "school-1", request.flowId(), "AAAA-AAAA"));
+        activation.approve("teacher-1", "school-1", request.flowId(), request.userCode());
+        var proof = java.security.Signature.getInstance("Ed25519");
+        proof.initSign(pair.getPrivate());
+        proof.update(academy.vrtraining.platform.device.DeviceActivationService.bindingMessage(
+                request.flowId(), request.challenge()));
+        var registered = activation.complete(request.flowId(), proof.sign());
+        assertEquals("school-1", deviceStore.findDevice(registered.deviceId()).tenantId());
+        assertThrows(java.security.GeneralSecurityException.class,
+                () -> activation.complete(request.flowId(), new byte[64]));
+        activation.revoke("teacher-1", "school-1", registered.deviceId());
+        assertEquals(academy.vrtraining.platform.device.DeviceActivationService.State.REVOKED,
+                deviceStore.findDevice(registered.deviceId()).state());
+
         var store = new PostgresClassroomStore(url, user, password);
         var classroom = store.createClassroom("school-1", "7А", "teacher-1");
         var student = store.createStudent(classroom.id(), "Айша");
