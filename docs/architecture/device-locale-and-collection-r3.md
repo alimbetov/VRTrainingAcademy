@@ -54,15 +54,43 @@ at device activation. The teacher activates the **device for a school** only.
   Nullable columns preserve existing R3 rows.
 - Existing PostgreSQL 16 integration CI applies migration R3_4.
 
-## Not yet production-implemented
+## Implemented in the next R3 engineering slice
 
-No real device UI, speech input, per-attempt selection API, persistent
-Content Domain lesson/collection catalog, teacher collection assignment,
-trusted sender-constrained device credentials or physical Quest E2E.
-Current R3 session scheduling still expects an explicit lessonId. Integrating
-a **session-level collection assignment** and **student-level lesson selection**
-requires a reviewed change to those contracts plus acceptance tests.
-No automatic 30-day cleanup worker is running.
+- `NumberLanguageLessonJourney` orchestrates authenticated device + student
+  number + per-attempt locale + authorized lesson selection.
+- `AuthorizedLessonCatalog` is a trust boundary; default adapter returns
+  **no lessons**. The public R0 demo catalog is never used for authorization.
+- `TeacherCollectionAssignmentService` validates tenant/teacher permission,
+  assigned device, content entitlement and concurrent session state.
+- `PostgresLearnerJourneyRepository` persists collection assignment and
+  selected student UUID, locale, lesson ID and trusted release ID. Migration
+  `R3_5__selected_lesson_release.sql` is required after R3_4.
+- JUnit and live PostgreSQL integration tests cover wrong device, missing
+  collection, unauthorized lesson and selected release persistence.
+- `unreal/contracts/learner-journey.v1.example.json` and Python contract
+  tests define three user screens followed by running state. These are
+  **non-native contract tests**, not UE runtime UI.
+
+## Still blocking production
+
+- Trust-backed **Content Domain publication database** that actually
+  produces localized published/entitled collections and lessons;
+  real implementation of `AuthorizedLessonCatalog` and
+  `AuthorizedCollectionAccess`. Their default behavior is deny.
+- Teacher session scheduling still uses legacy `lessonId` and `lessonRevision`
+  fields. Collection-first scheduling, selected lesson revision and content
+  immutable manifest binding need a separate migration and review.
+- Trusted sender-constrained device credentials and actual device REST
+  endpoints (deliberately not published); signed session/attempt capabilities.
+- Real Unreal UMG/Blueprint user interface and packaged Quest tests; currently
+  no `.uproject`, no runnable native screen.
+- Speech input, per-attempt offline outbox/reopen, automatic 30-day cleanup,
+  actual publisher-backed lesson metadata and performance/abuse controls.
+- PostgreSQL reference adapter uses DriverManager, not production pooling;
+  publication/entitlement revocation race needs transaction-safe design.
+
+No automatic 30-day cleanup worker is running. Do not describe this PR as
+an end-to-end working Quest classroom journey.
 
 Proposed endpoints (future; NOT exposed):
 - `GET /api/v1/device/me/sessions/{id}/lessons?locale=kk-KZ`
