@@ -83,6 +83,36 @@ class VRContentManagerTest {
         } finally { server.stop(0); }
     }
 
+    @Test void corruptedDownloadIsDiscardedAndCleanRetrySucceeds() throws Exception {
+        byte[] expected = "GOOD".getBytes(StandardCharsets.UTF_8);
+        var served = new java.util.concurrent.atomic.AtomicReference<>(
+                "EVIL".getBytes(StandardCharsets.UTF_8));
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/world.pak", exchange -> {
+            byte[] bytes = served.get();
+            exchange.getResponseHeaders().set("ETag", "\"asset-1\"");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var out = exchange.getResponseBody()) { out.write(bytes); }
+        });
+        server.start();
+        try {
+            var pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+            var signed = signedRelease(pair, "release-1", expected);
+            var manager = new VRContentManager(root.resolve("device"), baseUrl(server),
+                    true, pair.getPublic(), "quest", "runtime-1", 0, 3);
+            URI url = baseUrl(server).resolve("/world.pak");
+            assertThrows(java.security.GeneralSecurityException.class,
+                    () -> manager.downloadAndInstall(signed.release, signed.signature,
+                            Map.of("world.pak", url), Set.of()));
+            assertFalse(Files.exists(root.resolve("device/downloads/release-1/world.pak.part")));
+            assertTrue(manager.inventory().isEmpty());
+            served.set(expected);
+            var installed = manager.downloadAndInstall(signed.release, signed.signature,
+                    Map.of("world.pak", url), Set.of());
+            assertArrayEquals(expected, Files.readAllBytes(installed.resolve("world.pak")));
+        } finally { server.stop(0); }
+    }
+
     @Test void journalRecoveryCompletesInterruptedEvictionWithoutDeletingProgress() throws Exception {
         byte[] payload = "small".getBytes(StandardCharsets.UTF_8);
         var server = mockRustFs(payload);
