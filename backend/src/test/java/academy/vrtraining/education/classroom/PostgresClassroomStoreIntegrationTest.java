@@ -122,8 +122,11 @@ class PostgresClassroomStoreIntegrationTest {
         assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
                 lesson.id(), UUID.randomUUID(), numbered.id(), "PHYSICS", "kk-KZ",
                 "PHY-001", "release-1", from.plusSeconds(70)));
+        assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
+                lesson.id(), device, numbered.id(), "OLD_COLLECTION", "kk-KZ",
+                "PHY-001", "release-1", from.plusSeconds(70)));
         var selectedAttempt = journeyStore.beginSelectedAttempt(
-                lesson.id(), device, numbered.id(), "kk-KZ", "PHY-001", "release-1",
+                lesson.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
                 from.plusSeconds(70));
         assertEquals(numbered.id(), selectedAttempt.studentId());
         try (var db = DriverManager.getConnection(url, user, password);
