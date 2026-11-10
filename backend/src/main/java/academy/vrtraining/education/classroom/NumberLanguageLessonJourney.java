@@ -20,7 +20,7 @@ public final class NumberLanguageLessonJourney {
         String assignedCollection(UUID sessionId);
         /** Atomic insert, checking active device/session/student membership. */
         Attempt beginSelectedAttempt(UUID sessionId, UUID deviceId, UUID studentId,
-                                     String locale, String lessonId, String releaseId,
+                                     String collectionId, String locale, String lessonId, String releaseId,
                                      java.time.Instant now);
     }
 
@@ -68,7 +68,7 @@ public final class NumberLanguageLessonJourney {
         var lesson = DeviceLearningSelectionPolicy.requireLesson(request.locale(), collection,
                 permitted, request.lessonId());
         return repository.beginSelectedAttempt(request.sessionId(), trustedDeviceId,
-                context.studentId(), request.locale(), lesson.lessonId(), lesson.releaseId(), now);
+                context.studentId(), collection, request.locale(), lesson.lessonId(), lesson.releaseId(), now);
     }
 
     private Context context(String tenantId, UUID deviceId, UUID sessionId, int studentNumber) {
