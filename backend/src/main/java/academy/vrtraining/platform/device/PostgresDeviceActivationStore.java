@@ -149,7 +149,9 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
                 db.commit();
                 return new Device(deviceId, p.tenantId(), p.publicKey(), State.ACTIVE);
             } catch (Exception e) { db.rollback(); throw e; }
-        } catch (Exception e) { throw failed(e); }
+        } catch (SQLException e) { throw failed(e); }
+        catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw failed(e); }
     }
 
     /**
