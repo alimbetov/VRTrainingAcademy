@@ -76,10 +76,32 @@ class VRContentManagerTest {
             var manager = new VRContentManager(root.resolve("device"), baseUrl(server),
                     true, pair.getPublic(), "quest", "runtime-1", Long.MAX_VALUE, 3);
             var signed = signedRelease(pair, "release-1", payload);
-            assertThrows(ArithmeticException.class, () -> manager.downloadAndInstall(
+            assertThrows(java.io.IOException.class, () -> manager.downloadAndInstall(
                     signed.release, signed.signature,
                     Map.of("world.pak", baseUrl(server).resolve("/bucket/world.pak")), Set.of()));
             assertTrue(manager.inventory().isEmpty());
+        } finally { server.stop(0); }
+    }
+
+    @Test void journalRecoveryCompletesInterruptedEvictionWithoutDeletingProgress() throws Exception {
+        byte[] payload = "small".getBytes(StandardCharsets.UTF_8);
+        var server = mockRustFs(payload);
+        try {
+            var pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+            Path local = root.resolve("device");
+            var manager = new VRContentManager(local, baseUrl(server), true,
+                    pair.getPublic(), "quest", "runtime-1", 0, 3);
+            var signed = signedRelease(pair, "release-1", payload);
+            manager.downloadAndInstall(signed.release, signed.signature,
+                    Map.of("world.pak", baseUrl(server).resolve("/bucket/world.pak")), Set.of());
+            Path journal = local.resolve(".evicting-release-1");
+            Files.writeString(journal, "release-1");
+            assertThrows(java.io.IOException.class,
+                    () -> manager.recoverInventory(Set.of("release-1")));
+            assertTrue(Files.exists(local.resolve("installed/release-1/world.pak")));
+            assertTrue(manager.recoverInventory(Set.of()).isEmpty());
+            assertFalse(Files.exists(local.resolve("installed/release-1")));
+            assertFalse(Files.exists(journal));
         } finally { server.stop(0); }
     }
 
