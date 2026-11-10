@@ -40,5 +40,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - name: Unreal JSON contract tests
+        working-directory: .
+        run: python3 -m unittest discover -s unreal/tests -p 'test_*.py' -v
       - name: Build, unit and PostgreSQL integration tests
         run: mvn -B --no-transfer-progress clean verify
