@@ -17,8 +17,11 @@ public class DeviceActivationRuntimeConfiguration {
     PostgresDeviceActivationStore postgresDeviceActivationStore(
             @Value("${vr.device.jdbc-url:}") String url,
             @Value("${vr.device.jdbc-user:}") String user,
-            @Value("${vr.device.jdbc-password:}") String password) {
-        return new PostgresDeviceActivationStore(url, user, password);
+            @Value("${vr.device.jdbc-password:}") String password,
+            @Value("${vr.licensing.persistence-enabled:false}") boolean licensingEnabled) {
+        if (!licensingEnabled)
+            throw new IllegalStateException("Device activation requires licensed organization persistence");
+        return new PostgresDeviceActivationStore(url, user, password, true);
     }
 
     @Bean
