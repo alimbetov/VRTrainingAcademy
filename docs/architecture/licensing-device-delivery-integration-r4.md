@@ -53,7 +53,7 @@ expose the JCA public key object or return an authenticated device bearer.
 `DELETE /api/v1/organizations/me/devices/{deviceId}` (OIDC OWNER):
 Revokes the device within its organization and frees a licensed seat.
 
-Endpoints are **OFF** unless `VR_DEVICE_ACTIVATION_ENABLED=true`.
+Endpoints are **OFF** unless **both** `VR_DEVICE_ACTIVATION_ENABLED=true` and `VR_DEVICE_ACTIVATION_HTTP_ENABLED=true`. Do not enable the HTTP flag without production-grade edge rate limits, monitoring and abuse controls.
 The activation runtime now also requires
 `VR_LICENSING_PERSISTENCE_ENABLED=true`, because granting an unlicensed
 device is no longer a permitted runtime configuration.
