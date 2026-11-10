@@ -38,7 +38,8 @@ class NumberLanguageLessonJourneyTest {
             return classroomId.equals(id) && number == 247 ? studentId : null;
         }
         public String assignedCollection(UUID id) { return sessionId.equals(id) ? "PHYSICS" : null; }
-        public Attempt beginSelectedAttempt(UUID id, UUID d, UUID s, String locale, String lesson, String release, Instant now) {
+        public Attempt beginSelectedAttempt(UUID id, UUID d, UUID s, String collection, String locale, String lesson, String release, Instant now) {
+            assertEquals("PHYSICS", collection);
             assertEquals(sessionId, id);
             assertEquals(device, d);
             assertEquals(studentId, s);
