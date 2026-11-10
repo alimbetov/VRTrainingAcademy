@@ -22,4 +22,7 @@ public interface ClassroomStore {
     /** Idempotent insert on eventId; reject eventId collisions with different payload. */
     boolean appendEvent(ProgressEvent event);
     List<Score> scores(UUID sessionId);
+    default List<Score> scoresForDay(UUID classroomId, java.time.LocalDate teachingDate) {
+        throw new UnsupportedOperationException("Daily reporting adapter not enabled");
+    }
 }
