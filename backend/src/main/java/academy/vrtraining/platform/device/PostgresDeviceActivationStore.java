@@ -210,6 +210,52 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
         } catch (SQLException e) { throw failed(e); }
     }
 
+    /**
+     * Deterministic admission after downgrade. The first N registered ACTIVE
+     * devices by activation time and UUID retain access. Surplus devices
+     * remain registered but receive no online entitlement until seats expand
+     * or an earlier device is revoked. This never trusts caller deviceId as
+     * proof of possession.
+     */
+    @Override public boolean isDeviceWithinCurrentSeatLimit(UUID deviceId, Instant now) {
+        if (deviceId == null || now == null) return false;
+        String sql = """
+            WITH chosen_license AS (
+              SELECT l.organization_id, l.device_limit
+              FROM platform.organization_license l
+              JOIN platform.organization_account o
+                ON o.organization_id=l.organization_id
+              JOIN platform.registered_device target
+                ON target.tenant_id=l.organization_id::text
+              WHERE target.device_id=? AND target.state='ACTIVE'
+                AND o.status='ACTIVE'
+                AND l.revoked_at IS NULL AND l.starts_at<=? AND l.expires_at>?
+              ORDER BY CASE WHEN l.kind='COMMERCIAL' THEN 0 ELSE 1 END,
+                       l.expires_at DESC
+              LIMIT 1
+            ), ranked AS (
+              SELECT d.device_id,
+                row_number() OVER (ORDER BY d.activated_at, d.device_id) AS seat_number
+              FROM platform.registered_device d
+              JOIN chosen_license lic ON d.tenant_id=lic.organization_id::text
+              WHERE d.state='ACTIVE'
+            )
+            SELECT EXISTS (
+              SELECT 1 FROM ranked r CROSS JOIN chosen_license lic
+              WHERE r.device_id=? AND r.seat_number<=lic.device_limit
+            )
+            """;
+        try (var db = connect(); var q = db.prepareStatement(sql)) {
+            q.setObject(1, deviceId);
+            q.setTimestamp(2, Timestamp.from(now));
+            q.setTimestamp(3, Timestamp.from(now));
+            q.setObject(4, deviceId);
+            try (var r = q.executeQuery()) {
+                return r.next() && r.getBoolean(1);
+            }
+        } catch (SQLException e) { throw failed(e); }
+    }
+
     @Override public boolean revoke(UUID id, String tenantId) {
         try (var db = connect();
              var q = db.prepareStatement(
