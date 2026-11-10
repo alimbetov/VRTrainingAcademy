@@ -64,6 +64,11 @@ public class TeacherClassroomController {
                 request.startsAt(), request.endsAt());
     }
 
+    @GetMapping("/{classroomId}/statistics/today")
+    public List<Score> today(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID classroomId) {
+        return service.statisticsToday(tenant(jwt), jwt.getSubject(), classroomId);
+    }
+
     @GetMapping("/{classroomId}/sessions/{sessionId}/statistics")
     public List<Score> statistics(@AuthenticationPrincipal Jwt jwt,
                                   @PathVariable UUID classroomId, @PathVariable UUID sessionId) {
