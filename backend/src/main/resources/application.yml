@@ -8,3 +8,14 @@ management:
     web:
       exposure:
         include: health
+
+vr:
+  auth:
+    issuer-uri: ${VR_AUTH_ISSUER_URI:}
+    audience: ${VR_AUTH_AUDIENCE:}
+  delivery:
+    transport: ${VR_DELIVERY_TRANSPORT:DIRECT_RUSTFS}
+    s3-enabled: ${VR_DELIVERY_S3_ENABLED:false}
+    base-url: ${VR_DELIVERY_BASE_URL:}
+    region: ${VR_DELIVERY_REGION:us-east-1}
+    grant-ttl-seconds: ${VR_DELIVERY_GRANT_TTL_SECONDS:300}
