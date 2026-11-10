@@ -30,6 +30,7 @@ public class TeacherClassroomController {
 
     public record CreateClassroom(@NotBlank String title) {}
     public record AddStudent(@NotBlank String nickname) {}
+    public record AssignNumber(@NotNull Integer number) {}
     public record Schedule(@NotNull UUID deviceId, @NotBlank String lessonId,
                            @NotBlank String lessonRevision, @NotNull Instant startsAt,
                            @NotNull Instant endsAt) {}
@@ -45,6 +46,13 @@ public class TeacherClassroomController {
     public Student addStudent(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID classroomId,
                               @Valid @RequestBody AddStudent request) {
         return service.addStudent(tenant(jwt), jwt.getSubject(), classroomId, request.nickname());
+    }
+
+    @PostMapping("/{classroomId}/student-numbers")
+    @ResponseStatus(HttpStatus.CREATED)
+    public NumberedStudent assignNumber(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID classroomId, @Valid @RequestBody AssignNumber request) {
+        return service.assignNumber(tenant(jwt), jwt.getSubject(), classroomId, request.number());
     }
 
     @PostMapping("/{classroomId}/sessions")
