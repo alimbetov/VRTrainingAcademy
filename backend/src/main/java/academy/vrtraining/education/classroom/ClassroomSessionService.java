@@ -33,6 +33,11 @@ public final class ClassroomSessionService {
         return store.createClassroom(tenantId, title.trim(), teacherSubject);
     }
 
+    public NumberedStudent assignNumber(String tenantId, String teacher, UUID classroomId, int number) {
+        classroomForTeacher(tenantId, teacher, classroomId);
+        return store.assignNumber(classroomId, DailyStudentNumberPolicy.requireNumber(number));
+    }
+
     public Student addStudent(String tenantId, String teacher, UUID classroomId, String nickname) {
         classroomForTeacher(tenantId, teacher, classroomId);
         if (nickname == null || nickname.isBlank() || nickname.length() > 40
