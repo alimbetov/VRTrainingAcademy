@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * Routes stay closed when activation is disabled, including public key
  * enrollment. Owner approval and revoke never accept anonymous callers.
  */
-@SpringBootTest(properties="vr.device.activation-enabled=false")
+@SpringBootTest(properties={"vr.device.activation-enabled=false","vr.device.activation-http-enabled=false"})
 @AutoConfigureMockMvc
 class DeviceActivationEndpointsFailClosedTest {
     @Autowired MockMvc mvc;
