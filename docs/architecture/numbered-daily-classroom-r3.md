@@ -35,7 +35,8 @@ Accepted MVP product policy, 2026-11-10.
   `R3_3__daily_student_numbers.sql` introduces student numbers and daily
   session metadata **without deleting legacy nickname records**.
 - Teacher REST now supports `POST /api/v1/classrooms/{classroomId}/student-numbers` with `{\"number\":247}`. PostgreSQL enforces per-class uniqueness, and the existing roster displays the number for numbered students. Legacy nickname creation is preserved temporarily for backward compatibility; it is not required for new numbered records.
-- **Daily teacher report query and automated 30-day purge are not yet implemented.** Existing statistics remain scoped to an individual classroom session; the daily-date field must be populated and the report endpoint added in a subsequent reviewed change.
+- Teacher API now includes `GET /api/v1/classrooms/{classroomId}/statistics/today`: SQL filters by the school's `teaching_date`, which is populated at session creation using the configured IANA timezone. Existing session-history data remain intact across midnight.
+- **Automatic 30-day purge is not yet implemented.** No worker runs until retention reconciliation, legal hold and offline acknowledgment handling are qualified.
 - Speech recognition and Quest number-pad UI are not yet implemented.
 - No retention scheduler is live. Do not claim 30-day deletion is active.
 - Do not merge as production until application-level number creation,
