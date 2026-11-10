@@ -102,5 +102,11 @@ class PostgresClassroomStoreIntegrationTest {
                 () -> store.appendEvent(new ProgressEvent(UUID.randomUUID(), attempt.id(), 1,
                         "TASK_COMPLETED", 90, from.plusSeconds(120))));
         assertEquals(20, store.scores(lesson.id()).getFirst().score());
+        assertEquals(20, store.scoresForDay(classroom.id(),
+                java.time.LocalDate.of(2026, 11, 10)).getFirst().score());
+        assertTrue(store.scoresForDay(classroom.id(),
+                java.time.LocalDate.of(2026, 11, 11)).isEmpty());
+        // Yesterday's records stay stored; today's report starts at zero.
+        assertEquals(20, store.scores(lesson.id()).getFirst().score());
     }
 }
