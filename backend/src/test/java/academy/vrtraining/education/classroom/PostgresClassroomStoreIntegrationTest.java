@@ -110,27 +110,29 @@ class PostgresClassroomStoreIntegrationTest {
                 java.time.LocalDate.of(2026, 11, 11)).isEmpty());
         // Yesterday's records stay stored; today's report starts at zero.
         assertEquals(20, store.scores(lesson.id()).getFirst().score());
+        var selectionSession = store.createSession(classroom.id(), device, "UNSELECTED", "r1",
+                from, from.plusSeconds(3600));
         var journeyStore = new PostgresLearnerJourneyRepository(url, user, password);
         assertEquals(numbered.id(), journeyStore.studentByNumber(classroom.id(), 247));
-        assertNull(journeyStore.assignedCollection(lesson.id()));
+        assertNull(journeyStore.assignedCollection(selectionSession.id()));
         assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
-                lesson.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
+                selectionSession.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
                 from.plusSeconds(70)));
-        assertTrue(journeyStore.assign(lesson.id(), classroom.id(), device, "PHYSICS"));
-        assertEquals("PHYSICS", journeyStore.assignedCollection(lesson.id()));
-        assertFalse(journeyStore.assign(lesson.id(), classroom.id(), UUID.randomUUID(), "CHEMISTRY"));
+        assertTrue(journeyStore.assign(selectionSession.id(), classroom.id(), device, "PHYSICS"));
+        assertEquals("PHYSICS", journeyStore.assignedCollection(selectionSession.id()));
+        assertFalse(journeyStore.assign(selectionSession.id(), classroom.id(), UUID.randomUUID(), "CHEMISTRY"));
         assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
-                lesson.id(), UUID.randomUUID(), numbered.id(), "PHYSICS", "kk-KZ",
+                selectionSession.id(), UUID.randomUUID(), numbered.id(), "PHYSICS", "kk-KZ",
                 "PHY-001", "release-1", from.plusSeconds(70)));
         assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
-                lesson.id(), device, numbered.id(), "OLD_COLLECTION", "kk-KZ",
+                selectionSession.id(), device, numbered.id(), "OLD_COLLECTION", "kk-KZ",
                 "PHY-001", "release-1", from.plusSeconds(70)));
         var selectedAttempt = journeyStore.beginSelectedAttempt(
-                lesson.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
+                selectionSession.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
                 from.plusSeconds(70));
         assertEquals(numbered.id(), selectedAttempt.studentId());
-        assertFalse(journeyStore.assign(lesson.id(), classroom.id(), device, "CHEMISTRY"));
-        assertEquals("PHYSICS", journeyStore.assignedCollection(lesson.id()));
+        assertFalse(journeyStore.assign(selectionSession.id(), classroom.id(), device, "CHEMISTRY"));
+        assertEquals("PHYSICS", journeyStore.assignedCollection(selectionSession.id()));
         try (var db = DriverManager.getConnection(url, user, password);
              var stmt = db.prepareStatement(
                  "SELECT learner_locale,selected_lesson_id,selected_release_id " +
