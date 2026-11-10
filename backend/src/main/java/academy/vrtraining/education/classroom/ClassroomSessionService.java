@@ -16,11 +16,18 @@ public final class ClassroomSessionService {
     private final ClassroomStore store;
     private final ClassroomAuthorization auth;
     private final Clock clock;
+    private final java.time.ZoneId schoolTimezone;
 
     public ClassroomSessionService(ClassroomStore store, ClassroomAuthorization auth, Clock clock) {
+        this(store, auth, clock, java.time.ZoneId.of("Asia/Almaty"));
+    }
+
+    public ClassroomSessionService(ClassroomStore store, ClassroomAuthorization auth,
+                                   Clock clock, java.time.ZoneId schoolTimezone) {
         this.store = Objects.requireNonNull(store);
         this.auth = Objects.requireNonNull(auth);
         this.clock = Objects.requireNonNull(clock);
+        this.schoolTimezone = Objects.requireNonNull(schoolTimezone);
     }
 
     public Classroom createClassroom(String tenantId, String teacherSubject, String title) {
@@ -96,6 +103,12 @@ public final class ClassroomSessionService {
                 || event.occurredAt().isAfter(session.endsAt().plus(Duration.ofHours(24))))
             throw new IllegalArgumentException("Invalid event timestamp");
         return new ProgressReceipt(event.eventId(), store.appendEvent(event));
+    }
+
+    public List<Score> statisticsToday(String tenantId, String teacher, UUID classroomId) {
+        classroomForTeacher(tenantId, teacher, classroomId);
+        return store.scoresForDay(classroomId,
+                DailyStudentNumberPolicy.teachingDate(clock.instant(), schoolTimezone));
     }
 
     public List<Score> statistics(String tenantId, String teacher, UUID classroomId, UUID sessionId) {
