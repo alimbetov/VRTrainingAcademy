@@ -18,7 +18,7 @@ public class ClassroomRuntimeConfiguration {
     @Bean
     @ConditionalOnProperty(name="vr.classroom.persistence-enabled", havingValue="true")
     ClassroomStore postgresClassroomStore(
-            @Value("\${vr.classroom.school-timezone:Asia/Almaty}") String timezone,
+            @Value("${vr.classroom.school-timezone:Asia/Almaty}") String timezone,
             @Value("${vr.classroom.jdbc-url:}") String url,
             @Value("${vr.classroom.jdbc-user:}") String user,
             @Value("${vr.classroom.jdbc-password:}") String password) {
@@ -43,7 +43,7 @@ public class ClassroomRuntimeConfiguration {
     @Bean
     @ConditionalOnBean(ClassroomStore.class)
     ClassroomSessionService classroomSessionService(ClassroomStore store, ClassroomAuthorization authorization,
-            @Value("\${vr.classroom.school-timezone:Asia/Almaty}") String timezone) {
+            @Value("${vr.classroom.school-timezone:Asia/Almaty}") String timezone) {
         return new ClassroomSessionService(store, authorization, Clock.systemUTC(),
                 java.time.ZoneId.of(timezone));
     }
