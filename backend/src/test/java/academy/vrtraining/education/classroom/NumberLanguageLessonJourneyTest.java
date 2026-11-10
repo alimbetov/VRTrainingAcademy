@@ -84,6 +84,16 @@ class NumberLanguageLessonJourneyTest {
         assertThrows(SecurityException.class, () -> service.lessons("school-1", UUID.randomUUID(), sessionId, 247, "kk-KZ"));
     }
 
+    @Test void expiredSessionMustNotRevealLessonsOrStartAttempt() {
+        var expired = new NumberLanguageLessonJourney(store, auth, catalog, repo,
+                Clock.fixed(NOW.plusSeconds(3600), ZoneOffset.UTC));
+        assertThrows(SecurityException.class, () ->
+                expired.lessons("school-1", device, sessionId, 247, "kk-KZ"));
+        assertThrows(SecurityException.class, () ->
+                expired.start("school-1", device,
+                        new NumberLanguageLessonJourney.Start(sessionId, 247, "kk-KZ", "PHY-001")));
+    }
+
     @Test void denyAllCatalogCannotStartARelease() {
         var closed = new NumberLanguageLessonJourney(store, auth, (t,d,c,l)->List.of(), repo,
                 Clock.fixed(NOW, ZoneOffset.UTC));
