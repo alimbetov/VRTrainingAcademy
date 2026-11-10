@@ -35,11 +35,13 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
         try (var db = connection();
              var stmt = db.prepareStatement(
                  "UPDATE education.classroom_session SET collection_id=? " +
-                 "WHERE session_id=? AND classroom_id=? AND device_id=? AND active=true")) {
+                 "WHERE session_id=? AND classroom_id=? AND device_id=? AND active=true " +
+                 "AND NOT EXISTS (SELECT 1 FROM education.learning_attempt a WHERE a.session_id=?)")) {
             stmt.setString(1, collectionId);
             stmt.setObject(2, sessionId);
             stmt.setObject(3, classroomId);
             stmt.setObject(4, deviceId);
+            stmt.setObject(5, sessionId);
             return stmt.executeUpdate() == 1;
         } catch (SQLException e) { throw new IllegalStateException("Collection assignment failed", e); }
     }
