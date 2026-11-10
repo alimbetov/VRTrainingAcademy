@@ -65,6 +65,11 @@ public class OrganizationLicensingController {
                 body.deviceLimit(), body.collections());
     }
 
+    @GetMapping("/api/v1/platform-admin/license-requests/{requestId}")
+    public LicenseRequest adminRequest(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
+        return service.getRequestForAdmin(requireJwt(jwt).getSubject(), requestId);
+    }
+
     @PostMapping("/api/v1/platform-admin/license-requests/{requestId}/approve")
     @ResponseStatus(HttpStatus.CREATED)
     public License approve(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId,
@@ -87,7 +92,7 @@ public class OrganizationLicensingController {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public void invalidInput() {}
 
-    @ExceptionHandler(IllegalStateException.class)
+    @ExceptionHandler(LicenseConflictException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public void conflict() {}
 }
