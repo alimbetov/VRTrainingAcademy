@@ -129,6 +129,8 @@ class PostgresClassroomStoreIntegrationTest {
                 lesson.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
                 from.plusSeconds(70));
         assertEquals(numbered.id(), selectedAttempt.studentId());
+        assertFalse(journeyStore.assign(lesson.id(), classroom.id(), device, "CHEMISTRY"));
+        assertEquals("PHYSICS", journeyStore.assignedCollection(lesson.id()));
         try (var db = DriverManager.getConnection(url, user, password);
              var stmt = db.prepareStatement(
                  "SELECT learner_locale,selected_lesson_id,selected_release_id " +
