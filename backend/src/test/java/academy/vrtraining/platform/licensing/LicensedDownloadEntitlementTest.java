@@ -51,10 +51,15 @@ class LicensedDownloadEntitlementTest {
         var pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
         UUID deviceId = UUID.randomUUID();
         var devices = mock(DeviceActivationService.Store.class);
+        when(devices.isDeviceWithinCurrentSeatLimit(eq(deviceId), eq(now))).thenReturn(true);
         when(devices.findDevice(deviceId)).thenReturn(new DeviceActivationService.Device(
                 deviceId,orgId.toString(),pair.getPublic(),DeviceActivationService.State.ACTIVE));
         var service = new LicensedDeviceContentAccess(licenses,devices,published,clock);
         assertTrue(service.canDownloadForVerifiedDevice(deviceId,"physics"));
+        when(devices.isDeviceWithinCurrentSeatLimit(eq(deviceId), eq(now))).thenReturn(false);
+        assertFalse(service.canDownloadForVerifiedDevice(deviceId,"physics"),
+                "Registered device cannot download when outside current seat limit");
+        when(devices.isDeviceWithinCurrentSeatLimit(eq(deviceId), eq(now))).thenReturn(true);
         assertFalse(service.canDownloadForVerifiedDevice(deviceId,"not-published"));
         when(devices.findDevice(deviceId)).thenReturn(new DeviceActivationService.Device(
                 deviceId,orgId.toString(),pair.getPublic(),DeviceActivationService.State.REVOKED));
