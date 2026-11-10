@@ -15,13 +15,20 @@ import java.util.UUID;
 /** Transactional PostgreSQL adapter for one-use device activation. */
 public final class PostgresDeviceActivationStore implements DeviceActivationService.Store {
     private final String url, user, password;
+    private final boolean enforceLicenseSeats;
 
     public PostgresDeviceActivationStore(String url, String user, String password) {
+        this(url, user, password, false); // Legacy test adapter; runtime explicitly enforces seats.
+    }
+
+    public PostgresDeviceActivationStore(String url, String user, String password,
+                                         boolean enforceLicenseSeats) {
         if (url == null || !url.startsWith("jdbc:postgresql://"))
             throw new IllegalArgumentException("Postgres connection required");
         this.url = url;
         this.user = java.util.Objects.requireNonNull(user);
         this.password = java.util.Objects.requireNonNull(password);
+        this.enforceLicenseSeats = enforceLicenseSeats;
     }
 
     private java.sql.Connection connect() throws SQLException {
@@ -123,6 +130,7 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
                 }
                 if (p.state() != State.APPROVED || !now.isBefore(p.expiresAt())
                         || p.tenantId() == null) { db.rollback(); return null; }
+                if (enforceLicenseSeats) requireAvailableLicensedSeat(db, p.tenantId(), now);
                 UUID deviceId = UUID.randomUUID();
                 try (var q = db.prepareStatement(
                         "INSERT INTO platform.registered_device(device_id,tenant_id,public_key_spki,state,activated_at) VALUES(?,?,?,'ACTIVE',?)")) {
@@ -141,7 +149,52 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
                 db.commit();
                 return new Device(deviceId, p.tenantId(), p.publicKey(), State.ACTIVE);
             } catch (Exception e) { db.rollback(); throw e; }
-        } catch (Exception e) { throw failed(e); }
+        } catch (SQLException e) { throw failed(e); }
+        catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw failed(e); }
+    }
+
+    /**
+     * Lock organization BEFORE reading the active license and active-device
+     * count. Every licensed activation uses this same lock, so concurrent
+     * activations cannot oversubscribe the final seat.
+     */
+    private static void requireAvailableLicensedSeat(java.sql.Connection db,
+                                                     String tenantId, Instant now) throws SQLException {
+        UUID organizationId;
+        try { organizationId = UUID.fromString(tenantId); }
+        catch (IllegalArgumentException e) { throw new SecurityException("Invalid organization identity"); }
+        try (var lock = db.prepareStatement(
+                "SELECT organization_id FROM platform.organization_account " +
+                "WHERE organization_id=? AND status='ACTIVE' FOR UPDATE")) {
+            lock.setObject(1, organizationId);
+            try (var row = lock.executeQuery()) {
+                if (!row.next()) throw new SecurityException("Organization inactive or unknown");
+            }
+        }
+        int seats;
+        try (var license = db.prepareStatement(
+                "SELECT device_limit FROM platform.organization_license " +
+                "WHERE organization_id=? AND revoked_at IS NULL AND starts_at<=? AND expires_at>? " +
+                "ORDER BY CASE WHEN kind='COMMERCIAL' THEN 0 ELSE 1 END, " +
+                "expires_at DESC LIMIT 1")) {
+            license.setObject(1, organizationId);
+            license.setTimestamp(2, Timestamp.from(now));
+            license.setTimestamp(3, Timestamp.from(now));
+            try (var row = license.executeQuery()) {
+                if (!row.next()) throw new SecurityException("No active device license");
+                seats = row.getInt(1);
+            }
+        }
+        try (var count = db.prepareStatement(
+                "SELECT count(*) FROM platform.registered_device " +
+                "WHERE tenant_id=? AND state='ACTIVE'")) {
+            count.setString(1, organizationId.toString());
+            try (var row = count.executeQuery()) {
+                row.next();
+                if (row.getLong(1) >= seats) throw new SecurityException("Device seat limit reached");
+            }
+        }
     }
 
     @Override public Device findDevice(UUID id) {
@@ -153,6 +206,52 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
                 return r.next() ? new Device((UUID)r.getObject("device_id"),
                         r.getString("tenant_id"), decode(r.getBytes("public_key_spki")),
                         state(r,"state")) : null;
+            }
+        } catch (SQLException e) { throw failed(e); }
+    }
+
+    /**
+     * Deterministic admission after downgrade. The first N registered ACTIVE
+     * devices by activation time and UUID retain access. Surplus devices
+     * remain registered but receive no online entitlement until seats expand
+     * or an earlier device is revoked. This never trusts caller deviceId as
+     * proof of possession.
+     */
+    @Override public boolean isDeviceWithinCurrentSeatLimit(UUID deviceId, Instant now) {
+        if (deviceId == null || now == null) return false;
+        String sql = """
+            WITH chosen_license AS (
+              SELECT l.organization_id, l.device_limit
+              FROM platform.organization_license l
+              JOIN platform.organization_account o
+                ON o.organization_id=l.organization_id
+              JOIN platform.registered_device target
+                ON target.tenant_id=l.organization_id::text
+              WHERE target.device_id=? AND target.state='ACTIVE'
+                AND o.status='ACTIVE'
+                AND l.revoked_at IS NULL AND l.starts_at<=? AND l.expires_at>?
+              ORDER BY CASE WHEN l.kind='COMMERCIAL' THEN 0 ELSE 1 END,
+                       l.expires_at DESC
+              LIMIT 1
+            ), ranked AS (
+              SELECT d.device_id,
+                row_number() OVER (ORDER BY d.activated_at, d.device_id) AS seat_number
+              FROM platform.registered_device d
+              JOIN chosen_license lic ON d.tenant_id=lic.organization_id::text
+              WHERE d.state='ACTIVE'
+            )
+            SELECT EXISTS (
+              SELECT 1 FROM ranked r CROSS JOIN chosen_license lic
+              WHERE r.device_id=? AND r.seat_number<=lic.device_limit
+            )
+            """;
+        try (var db = connect(); var q = db.prepareStatement(sql)) {
+            q.setObject(1, deviceId);
+            q.setTimestamp(2, Timestamp.from(now));
+            q.setTimestamp(3, Timestamp.from(now));
+            q.setObject(4, deviceId);
+            try (var r = q.executeQuery()) {
+                return r.next() && r.getBoolean(1);
             }
         } catch (SQLException e) { throw failed(e); }
     }
