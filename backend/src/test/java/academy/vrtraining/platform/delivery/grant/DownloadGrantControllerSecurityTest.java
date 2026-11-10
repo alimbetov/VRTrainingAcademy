@@ -42,6 +42,19 @@ class DownloadGrantControllerSecurityTest {
                 .andExpect(status().isOk());
     }
 
+    @Test void authenticatedProxyModeIsNotExposedInDirectMode() throws Exception {
+        mvc.perform(get("/api/v1/me/content/physics/artifacts/world.pak")
+                        .with(jwt().jwt(t -> t.subject("user-1").claim("tenant_id", "tenant-1")))
+                        .param("platform", "quest").param("runtimeBuildId", "runtime-1")
+                        .header("Range", "bytes=0-100"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test void publicCatalogDoesNotPermitPost() throws Exception {
+        mvc.perform(post("/api/v1/public/catalog"))
+                .andExpect(status().isUnauthorized());
+    }
+
     @Test void proxyEndpointNotPublicEvenWhenDisabled() throws Exception {
         mvc.perform(get("/api/v1/me/content/physics/artifacts/world.pak")
                         .param("platform", "quest").param("runtimeBuildId", "runtime-1"))
