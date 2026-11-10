@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -22,8 +23,8 @@ public class DeliverySecurityConfiguration {
         return http.csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
-                    .requestMatchers("GET", "/api/v1/public/catalog").permitAll()
-                    .requestMatchers("GET", "/actuator/health").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/public/catalog").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                     .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o.jwt(j -> {}))
                 .build();
