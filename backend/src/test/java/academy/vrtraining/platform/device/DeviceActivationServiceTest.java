@@ -19,7 +19,7 @@ class DeviceActivationServiceTest {
         }
     };
     private final DeviceActivationService service =
-            new DeviceActivationService(store, administrator, CLOCK, new SecureRandom());
+            new DeviceActivationService(store, administrator, CLOCK, new SecureRandom(), new byte[32]);
 
     @Test void activationNeedsAdminConsentAndPrivateKeyProofAndCannotReplay() throws Exception {
         var deviceKey = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
