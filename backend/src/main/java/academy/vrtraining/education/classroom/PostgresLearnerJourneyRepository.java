@@ -14,7 +14,8 @@ import java.util.UUID;
  * Transactional insertion re-checks membership, device, classroom assignment
  * and lesson revision, using only bound SQL parameters.
  */
-public final class PostgresLearnerJourneyRepository implements NumberLanguageLessonJourney.Repository {
+public final class PostgresLearnerJourneyRepository implements NumberLanguageLessonJourney.Repository,
+        TeacherCollectionAssignmentService.AssignmentStore {
     private final String jdbcUrl, user, password;
 
     public PostgresLearnerJourneyRepository(String jdbcUrl, String user, String password) {
@@ -27,6 +28,20 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
 
     private java.sql.Connection connection() throws SQLException {
         return DriverManager.getConnection(jdbcUrl, user, password);
+    }
+
+    @Override public boolean assign(UUID sessionId, UUID classroomId, UUID deviceId,
+                                    String collectionId) {
+        try (var db = connection();
+             var stmt = db.prepareStatement(
+                 "UPDATE education.classroom_session SET collection_id=? " +
+                 "WHERE session_id=? AND classroom_id=? AND device_id=? AND active=true")) {
+            stmt.setString(1, collectionId);
+            stmt.setObject(2, sessionId);
+            stmt.setObject(3, classroomId);
+            stmt.setObject(4, deviceId);
+            return stmt.executeUpdate() == 1;
+        } catch (SQLException e) { throw new IllegalStateException("Collection assignment failed", e); }
     }
 
     @Override public UUID studentByNumber(UUID classroomId, int number) {
