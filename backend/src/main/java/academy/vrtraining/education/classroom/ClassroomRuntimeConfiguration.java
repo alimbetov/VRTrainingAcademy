@@ -28,6 +28,7 @@ public class ClassroomRuntimeConfiguration {
     @ConditionalOnMissingBean(ClassroomAuthorization.class)
     ClassroomAuthorization denyClassroomAccess() {
         return new ClassroomAuthorization() {
+            public boolean teacherMayCreateClassroom(String teacher, String tenant) { return false; }
             public boolean teacherMayManage(String teacher, String tenant, java.util.UUID classroom) {
                 return false;
             }
