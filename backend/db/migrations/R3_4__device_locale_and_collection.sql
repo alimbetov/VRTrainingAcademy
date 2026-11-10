@@ -1,18 +1,21 @@
--- R3 contract migration, run after R3_2 and R3_3.
--- Persist the administrator-chosen device locale. Changes require authorized
--- device-management permission; never trust a locale supplied on an asset GET.
-ALTER TABLE platform.registered_device
-    ADD COLUMN preferred_locale varchar(5) NOT NULL DEFAULT 'ru-RU',
-    ADD CONSTRAINT ck_device_preferred_locale
-    CHECK (preferred_locale IN ('kk-KZ', 'ru-RU', 'en-US'));
+-- R3 revised product journey: student number -> learner language -> lesson.
+-- Run after R3_2 and R3_3 on PostgreSQL 16.
+-- A device must not impose a locale on all learners; learner locale belongs
+-- to the learning attempt, selected after the numeric student ID.
+ALTER TABLE education.learning_attempt
+    ADD COLUMN learner_locale varchar(5),
+    ADD COLUMN selected_lesson_id varchar(128),
+    ADD CONSTRAINT ck_attempt_learner_locale
+    CHECK (learner_locale IS NULL OR learner_locale IN ('kk-KZ', 'ru-RU', 'en-US'));
 
--- A classroom session may select an explicit collection from an authorized list.
--- Collection ID must resolve to an immutable published release in the content
--- domain, with tenant entitlement + runtime/platform/language compatibility.
--- The foreign key cannot be added until the content publication model exists.
+-- Teacher/course administration may scope the lesson menu to a collection.
+-- Actual collection and lesson publication, tenant entitlement and compatible
+-- release must be checked against trusted Content Domain on every selection.
+-- Collection table/FK is deferred until Content Domain publication is persisted.
 ALTER TABLE education.classroom_session
     ADD COLUMN collection_id varchar(128);
 
--- Do not imply that arbitrary collection IDs are approved. When integrating
--- the session controller, validate before insert against PublishedReleasePort,
--- organization entitlements and the signed manifest.
+-- Existing learning_attempt records remain valid (nullable backfill). For new
+-- lesson selections, application must save selected_lesson_id and learner_locale
+-- atomically when starting the attempt, with a trusted device credential.
+-- Never use user-supplied lesson IDs as S3 object keys.
