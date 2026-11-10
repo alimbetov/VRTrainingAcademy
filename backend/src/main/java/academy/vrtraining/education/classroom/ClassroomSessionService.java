@@ -26,6 +26,8 @@ public final class ClassroomSessionService {
     public Classroom createClassroom(String tenantId, String teacherSubject, String title) {
         requireId(tenantId);
         requireId(teacherSubject);
+        if (!auth.teacherMayCreateClassroom(teacherSubject, tenantId))
+            throw new SecurityException("Teacher not authorized to create classroom");
         if (title == null || title.isBlank() || title.length() > 120)
             throw new IllegalArgumentException("Invalid classroom title");
         return store.createClassroom(tenantId, title.trim(), teacherSubject);
