@@ -52,6 +52,12 @@ class PostgresLicenseStoreIntegrationTest {
                 svc.grant("teacher", request.id(), 5, Set.of("PHYSICS"), NOW.plus(Duration.ofDays(365))));
         assertThrows(SecurityException.class, () ->
                 svc.grant("platform-admin", request.id(), 6, Set.of("PHYSICS"), NOW.plus(Duration.ofDays(365))));
+        assertEquals(request.id(), svc.getRequestForAdmin("platform-admin", request.id()).id());
+        assertThrows(SecurityException.class,
+                () -> svc.getRequestForAdmin("teacher", request.id()));
+        assertThrows(SecurityException.class,
+                () -> svc.grant("platform-admin", request.id(), 5, Set.of("DRAFT_UNKNOWN"),
+                        NOW.plus(Duration.ofDays(365))));
         var license = svc.grant("platform-admin", request.id(), 5, Set.of("PHYSICS"),
                 NOW.plus(Duration.ofDays(365)));
         assertEquals(LicenseContracts.LicenseKind.COMMERCIAL, license.kind());
@@ -63,6 +69,28 @@ class PostgresLicenseStoreIntegrationTest {
         assertEquals(Set.of("PHYSICS"), rights.collections());
         assertEquals(NOW.plus(Duration.ofDays(365)), rights.validUntil());
 
+        var secondRequest = svc.requestCommercial("oidc-subject-1", 4, Set.of("PHYSICS"));
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var latch = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<Boolean> task = () -> {
+                latch.await();
+                try {
+                    svc.grant("platform-admin", secondRequest.id(), 4, Set.of("PHYSICS"),
+                            NOW.plus(Duration.ofDays(180)));
+                    return true;
+                } catch (LicenseConflictException ex) {
+                    return false;
+                }
+            };
+            var a = executor.submit(task);
+            var b = executor.submit(task);
+            latch.countDown();
+            assertEquals(1, (a.get() ? 1 : 0) + (b.get() ? 1 : 0),
+                    "Concurrent approvals must create exactly one license");
+        } finally {
+            executor.shutdownNow();
+        }
         var future = new OrganizationLicensingService(store, subject -> false,
                 collections -> false, Clock.fixed(NOW.plus(Duration.ofDays(366)), ZoneOffset.UTC));
         assertFalse(future.myEntitlements("oidc-subject-1").active());
