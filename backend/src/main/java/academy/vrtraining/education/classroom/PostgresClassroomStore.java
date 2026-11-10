@@ -85,10 +85,24 @@ public final class PostgresClassroomStore implements ClassroomStore {
         } catch (SQLException e) { throw failure(e); }
     }
 
+    @Override public NumberedStudent assignNumber(UUID classroomId, int number) {
+        DailyStudentNumberPolicy.requireNumber(number);
+        UUID id = UUID.randomUUID();
+        try (var db = connect();
+             var stmt = db.prepareStatement(
+                "INSERT INTO education.student_profile(student_id,classroom_id,student_number,nickname,normalized_nickname) VALUES(?,?,?,NULL,NULL)")) {
+            stmt.setObject(1, id);
+            stmt.setObject(2, classroomId);
+            stmt.setInt(3, number);
+            stmt.executeUpdate();
+            return new NumberedStudent(id, classroomId, number, true);
+        } catch (SQLException e) { throw failure(e); }
+    }
+
     @Override public List<Student> students(UUID classroomId) {
         try (var db = connect();
              var stmt = db.prepareStatement(
-                "SELECT student_id,classroom_id,nickname,active FROM education.student_profile WHERE classroom_id=? ORDER BY normalized_nickname")) {
+                "SELECT student_id,classroom_id,COALESCE(student_number::text,nickname),active FROM education.student_profile WHERE classroom_id=? ORDER BY student_number,normalized_nickname")) {
             stmt.setObject(1, classroomId);
             try (var rows = stmt.executeQuery()) {
                 var result = new ArrayList<Student>();
