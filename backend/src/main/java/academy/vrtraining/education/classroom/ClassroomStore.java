@@ -10,6 +10,9 @@ public interface ClassroomStore {
     Classroom createClassroom(String tenantId, String title, String teacherSubject);
     Optional<Classroom> findClassroom(UUID id);
     Student createStudent(UUID classroomId, String nickname);
+    default NumberedStudent assignNumber(UUID classroomId, int number) {
+        throw new UnsupportedOperationException("Numbered student store not enabled");
+    }
     List<Student> students(UUID classroomId);
     Session createSession(UUID classroomId, UUID deviceId, String lessonId,
                           String revision, java.time.Instant startsAt, java.time.Instant endsAt);
