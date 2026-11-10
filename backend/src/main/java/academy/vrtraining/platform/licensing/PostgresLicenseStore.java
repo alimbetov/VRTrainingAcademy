@@ -124,9 +124,19 @@ public final class PostgresLicenseStore implements LicenseStore {
              var q = db.prepareStatement(
                 "INSERT INTO platform.organization_license_request(request_id,organization_id," +
                 "requested_by_subject,requested_device_limit,requested_collections,created_at)" +
-                " SELECT ?,organization_id,?,?,?,?, FROM platform.organization_account" )) {
-            // replaced below
-            throw new IllegalStateException("unreachable");
+                " SELECT ?,organization_id,?,?,?,? FROM platform.organization_account " +
+                "WHERE organization_id=? AND owner_subject=? AND status='ACTIVE'")) {
+            q.setObject(1, requestId);
+            q.setString(2, owner);
+            q.setInt(3, devices);
+            q.setArray(4, db.createArrayOf("text", collections.toArray(String[]::new)));
+            q.setTimestamp(5, Timestamp.from(now));
+            q.setObject(6, orgId);
+            q.setString(7, owner);
+            if (q.executeUpdate() != 1)
+                throw new SecurityException("Organization owner not authorized");
+            return new LicenseRequest(requestId, orgId, owner, devices,
+                    collections, RequestStatus.PENDING, now);
         } catch (SQLException e) { throw databaseError(e); }
     }
 
