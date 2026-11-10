@@ -122,6 +122,45 @@ class PostgresClassroomStoreIntegrationTest {
                 java.time.Clock.fixed(testNow,java.time.ZoneOffset.UTC));
         assertTrue(devicePolicy.canDownloadForVerifiedDevice(a.deviceId(),"demo-physics"));
         assertFalse(devicePolicy.canDownloadForVerifiedDevice(a.deviceId(),"not-published"));
+        assertTrue(guarded.isDeviceWithinCurrentSeatLimit(a.deviceId(), testNow));
+        // Commercial downgrade to one seat must immediately restrict online
+        // access, even if both registered-device rows remain ACTIVE.
+        UUID downgradeLicenseId = UUID.randomUUID();
+        try (var db = DriverManager.getConnection(url,user,password);
+             var stmt = db.prepareStatement(
+                "INSERT INTO platform.organization_license(license_id,organization_id,kind," +
+                "starts_at,expires_at,device_limit,allowed_collections,issued_by_subject,issued_at)" +
+                " VALUES(?,?,'COMMERCIAL',?,?,1,ARRAY['DEMO']::text[],'platform-admin',?)")) {
+            stmt.setObject(1,downgradeLicenseId);
+            stmt.setObject(2,licensedOrg.id());
+            stmt.setTimestamp(3,java.sql.Timestamp.from(testNow));
+            stmt.setTimestamp(4,java.sql.Timestamp.from(testNow.plusSeconds(3600)));
+            stmt.setTimestamp(5,java.sql.Timestamp.from(testNow));
+            assertEquals(1,stmt.executeUpdate());
+        }
+        java.util.List<UUID> currentlyActive = new java.util.ArrayList<>();
+        try (var db = DriverManager.getConnection(url,user,password);
+             var stmt = db.prepareStatement(
+                "SELECT device_id FROM platform.registered_device " +
+                "WHERE tenant_id=? AND state='ACTIVE'")) {
+            stmt.setString(1,licensedOrg.id().toString());
+            try (var rows=stmt.executeQuery()) {
+                while(rows.next()) currentlyActive.add((UUID) rows.getObject(1));
+            }
+        }
+        assertEquals(2,currentlyActive.size());
+        assertEquals(1,currentlyActive.stream()
+                .filter(id -> devicePolicy.canDownloadForVerifiedDevice(id,"demo-physics")).count(),
+                "Downgrading seat limit to one must deny surplus ACTIVE Quest access");
+        try (var db = DriverManager.getConnection(url,user,password);
+             var stmt = db.prepareStatement(
+                 "DELETE FROM platform.organization_license WHERE license_id=?")) {
+            stmt.setObject(1,downgradeLicenseId);
+            assertEquals(1,stmt.executeUpdate());
+        }
+        assertEquals(2,currentlyActive.stream()
+                .filter(id -> devicePolicy.canDownloadForVerifiedDevice(id,"demo-physics")).count(),
+                "Restoring two seats must reauthorize both registered Quest devices");
         guardService.revoke("owner",licensedOrg.id().toString(),a.deviceId());
         assertFalse(devicePolicy.canDownloadForVerifiedDevice(a.deviceId(),"demo-physics"));
         var fourth=approvedFlow(guardService,licensedOrg.id().toString());
