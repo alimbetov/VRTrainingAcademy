@@ -25,7 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
  * The next stage must issue sender-constrained credentials for future calls.
  */
 @RestController
-@ConditionalOnProperty(name="vr.device.activation-enabled", havingValue="true")
+@ConditionalOnProperty(name={"vr.device.activation-enabled","vr.device.activation-http-enabled"}, havingValue="true")
 public class DeviceActivationController {
     private final DeviceActivationService service;
     private final LicenseStore licenses;
