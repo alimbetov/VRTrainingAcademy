@@ -31,6 +31,7 @@ class PostgresLicenseStoreIntegrationTest {
         }
         var store = new PostgresLicenseStore(url, user, password);
         var svc = new OrganizationLicensingService(store, subject -> "platform-admin".equals(subject),
+                collections -> Set.of("PHYSICS", "CHEMISTRY").containsAll(collections),
                 Clock.fixed(NOW, ZoneOffset.UTC));
 
         var org = svc.register("oidc-subject-1", "owner@school.example", true, "Example School");
@@ -54,7 +55,7 @@ class PostgresLicenseStoreIntegrationTest {
         var license = svc.grant("platform-admin", request.id(), 5, Set.of("PHYSICS"),
                 NOW.plus(Duration.ofDays(365)));
         assertEquals(LicenseContracts.LicenseKind.COMMERCIAL, license.kind());
-        assertThrows(IllegalStateException.class, () ->
+        assertThrows(LicenseConflictException.class, () ->
                 svc.grant("platform-admin", request.id(), 5, Set.of("PHYSICS"),
                         NOW.plus(Duration.ofDays(365))), "Second approval rejected");
         rights = svc.myEntitlements("oidc-subject-1");
@@ -63,7 +64,7 @@ class PostgresLicenseStoreIntegrationTest {
         assertEquals(NOW.plus(Duration.ofDays(365)), rights.validUntil());
 
         var future = new OrganizationLicensingService(store, subject -> false,
-                Clock.fixed(NOW.plus(Duration.ofDays(366)), ZoneOffset.UTC));
+                collections -> false, Clock.fixed(NOW.plus(Duration.ofDays(366)), ZoneOffset.UTC));
         assertFalse(future.myEntitlements("oidc-subject-1").active());
         assertTrue(future.myEntitlements("oidc-subject-1").collections().isEmpty());
     }
