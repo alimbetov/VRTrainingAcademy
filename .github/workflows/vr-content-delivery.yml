@@ -1,0 +1,52 @@
+name: VRTrainingAcademy backend and PostgreSQL contract tests
+on:
+  push:
+    branches:
+      - main
+      - 'integration/**'
+      - 'feat/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'unreal/**'
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/vr-content-delivery.yml'
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vrtest
+          POSTGRES_PASSWORD: vrtest
+          POSTGRES_DB: vrtraining
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vrtest -d vrtraining"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      VRTA_TEST_PG_JDBC_URL: jdbc:postgresql://localhost:5432/vrtraining
+      VRTA_TEST_PG_USER: vrtest
+      VRTA_TEST_PG_PASSWORD: vrtest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Unreal JSON contract tests
+        working-directory: .
+        run: python3 -m unittest discover -s unreal/tests -p 'test_*.py' -v
+      - name: Build, unit and PostgreSQL integration tests
+        run: mvn -B --no-transfer-progress clean verify

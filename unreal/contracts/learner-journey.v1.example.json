@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "screens": ["STUDENT_NUMBER", "LANGUAGE", "LESSON_LIST", "LESSON_RUNNING"],
+  "studentNumber": 247,
+  "sessionId": "9c6e0d2e-738d-4c21-bcac-2e2dc755e046",
+  "availableLanguages": ["kk-KZ", "ru-RU", "en-US"],
+  "selectedLanguage": "kk-KZ",
+  "assignedCollectionId": "PHYSICS",
+  "availableLessons": [
+    {
+      "lessonId": "PHY-001",
+      "collectionId": "PHYSICS",
+      "title": "Электр тізбегі",
+      "releaseId": "release-1"
+    }
+  ],
+  "notes": "Non-authoritative UI fixture only. Do not include signed grant or token here."
+}

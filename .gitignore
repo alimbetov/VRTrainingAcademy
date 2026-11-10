@@ -1,0 +1,15 @@
+# Java
+**/target/
+*.class
+# Unreal derived files (source assets belong in git or git-lfs)
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+# Local credentials
+.env
+.env.*
+!.env.example
+.idea/
+.DS_Store

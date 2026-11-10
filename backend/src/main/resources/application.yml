@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: vrtraining-backend
+server:
+  port: ${SERVER_PORT:8080}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+vr:
+  auth:
+    issuer-uri: ${VR_AUTH_ISSUER_URI:}
+    audience: ${VR_AUTH_AUDIENCE:}
+  delivery:
+    transport: ${VR_DELIVERY_TRANSPORT:DIRECT_RUSTFS}
+    s3-enabled: ${VR_DELIVERY_S3_ENABLED:false}
+    base-url: ${VR_DELIVERY_BASE_URL:}
+    region: ${VR_DELIVERY_REGION:us-east-1}
+    grant-ttl-seconds: ${VR_DELIVERY_GRANT_TTL_SECONDS:300}
+  classroom:
+    school-timezone: ${VR_CLASSROOM_SCHOOL_TIMEZONE:Asia/Almaty}
+    persistence-enabled: ${VR_CLASSROOM_PERSISTENCE_ENABLED:false}
+    jdbc-url: ${VR_CLASSROOM_JDBC_URL:}
+    jdbc-user: ${VR_CLASSROOM_JDBC_USER:}
+    jdbc-password: ${VR_CLASSROOM_JDBC_PASSWORD:}
+  device:
+    activation-enabled: ${VR_DEVICE_ACTIVATION_ENABLED:false}
+    jdbc-url: ${VR_DEVICE_JDBC_URL:}
+    jdbc-user: ${VR_DEVICE_JDBC_USER:}
+    jdbc-password: ${VR_DEVICE_JDBC_PASSWORD:}
+    activation-pepper-b64: ${VR_DEVICE_ACTIVATION_PEPPER_B64:}
