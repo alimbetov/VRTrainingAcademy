@@ -22,6 +22,10 @@ class PostgresClassroomStoreIntegrationTest {
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_3__daily_student_numbers.sql"));
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_4__device_locale_and_collection.sql"));
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_5__selected_lesson_release.sql"));
+        sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R4__organization_trial_manual_licensing.sql"))
+                .replace("CREATE TABLE platform.", "CREATE TABLE IF NOT EXISTS platform.")
+                .replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ")
+                .replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ");
         sql = sql.lines().map(line -> line.stripLeading().startsWith("--") ? "" : line)
                 .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
         try (var db = DriverManager.getConnection(url, user, password);
@@ -69,6 +73,57 @@ class PostgresClassroomStoreIntegrationTest {
         activation.revoke("teacher-1", "school-1", registered.deviceId());
         assertEquals(academy.vrtraining.platform.device.DeviceActivationService.State.REVOKED,
                 deviceStore.findDevice(registered.deviceId()).state());
+
+        var licenseStore = new academy.vrtraining.platform.licensing.PostgresLicenseStore(url,user,password);
+        var testNow = Instant.parse("2026-11-10T12:00:00Z");
+        var licensedOrg = licenseStore.createTrial("seats-" + UUID.randomUUID(),
+                "owner@example.org","Seat School",testNow,testNow.plusSeconds(30L*86400),
+                2,java.util.Set.of("DEMO"));
+        var guarded = new academy.vrtraining.platform.device.PostgresDeviceActivationStore(
+                url,user,password,true);
+        var admin = new academy.vrtraining.platform.device.DeviceActivationService.AdministratorAuthorization() {
+            public boolean mayActivateDevice(String subject, String tenant) {
+                return "owner".equals(subject) && licensedOrg.id().toString().equals(tenant);
+            }
+            public boolean mayRevokeDevice(String subject, String tenant) {
+                return mayActivateDevice(subject,tenant);
+            }
+        };
+        var guardService = new academy.vrtraining.platform.device.DeviceActivationService(
+                guarded,admin,java.time.Clock.fixed(testNow,java.time.ZoneOffset.UTC),
+                new java.security.SecureRandom(),new byte[32]);
+        var first = approvedFlow(guardService,licensedOrg.id().toString());
+        var a = guardService.complete(first.flowId(),first.proof());
+        var second = approvedFlow(guardService,licensedOrg.id().toString());
+        var third = approvedFlow(guardService,licensedOrg.id().toString());
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var latch = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<Boolean> task2 = () -> {
+                latch.await();
+                try { guardService.complete(second.flowId(),second.proof()); return true; }
+                catch (SecurityException ex) { return false; }
+            };
+            java.util.concurrent.Callable<Boolean> task3 = () -> {
+                latch.await();
+                try { guardService.complete(third.flowId(),third.proof()); return true; }
+                catch (SecurityException ex) { return false; }
+            };
+            var p2=pool.submit(task2);
+            var p3=pool.submit(task3);
+            latch.countDown();
+            assertEquals(1,(p2.get()?1:0)+(p3.get()?1:0),
+                    "Concurrent activation cannot oversubscribe last seat");
+        } finally { pool.shutdownNow(); }
+        guardService.revoke("owner",licensedOrg.id().toString(),a.deviceId());
+        var fourth=approvedFlow(guardService,licensedOrg.id().toString());
+        assertEquals(academy.vrtraining.platform.device.DeviceActivationService.State.ACTIVE,
+                guardService.complete(fourth.flowId(),fourth.proof()).state());
+        var expired = new academy.vrtraining.platform.device.DeviceActivationService(
+                guarded,admin,java.time.Clock.fixed(testNow.plusSeconds(31L*86400),
+                java.time.ZoneOffset.UTC),new java.security.SecureRandom(),new byte[32]);
+        var late = approvedFlow(expired,licensedOrg.id().toString());
+        assertThrows(SecurityException.class, () -> expired.complete(late.flowId(),late.proof()));
 
         var store = new PostgresClassroomStore(url, user, password);
         var classroom = store.createClassroom("school-1", "7А", "teacher-1");
@@ -138,5 +193,19 @@ class PostgresClassroomStoreIntegrationTest {
                 assertEquals("release-1", r.getString(3));
             }
         }
+    }
+
+    private record ApprovedDeviceFlow(UUID flowId, byte[] proof) {}
+    private static ApprovedDeviceFlow approvedFlow(
+            academy.vrtraining.platform.device.DeviceActivationService service, String tenant)
+            throws Exception {
+        var key=java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        var flow=service.begin(key.getPublic());
+        service.approve("owner",tenant,flow.flowId(),flow.userCode());
+        var signer=java.security.Signature.getInstance("Ed25519");
+        signer.initSign(key.getPrivate());
+        signer.update(academy.vrtraining.platform.device.DeviceActivationService.bindingMessage(
+                flow.flowId(),flow.challenge()));
+        return new ApprovedDeviceFlow(flow.flowId(),signer.sign());
     }
 }
