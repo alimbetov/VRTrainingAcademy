@@ -3,7 +3,6 @@ package academy.vrtraining.platform.catalog;
 import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
  * Replaced by persisted scoped catalog in R1.
  */
 @RestController
-@Validated
 @RequestMapping("/api/v1/public/catalog")
 public class PublicCatalogController {
     private static final Map<String, Map<String, String>> TITLES = Map.of(
