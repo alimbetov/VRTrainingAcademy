@@ -19,6 +19,7 @@ class PostgresClassroomStoreIntegrationTest {
         String password = System.getenv("VRTA_TEST_PG_PASSWORD");
         String sql = Files.readString(Path.of("db/migrations/R3__classroom_learning_foundation.sql"));
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_2__device_activation_foundation.sql"));
+        sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_3__daily_student_numbers.sql"));
         sql = sql.lines().map(line -> line.stripLeading().startsWith("--") ? "" : line)
                 .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
         try (var db = DriverManager.getConnection(url, user, password);
