@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "9c6e0d2e-738d-4c21-bcac-2e2dc755e046",
+  "deviceId": "f59f8274-a8ae-4f64-9db1-7d98d7715ea2",
+  "tenantId": "school-015",
+  "classroomId": "90639076-6364-40ec-925d-bfa0421eaa66",
+  "lessonId": "PHY-001",
+  "lessonRevision": "r1",
+  "notBefore": "2026-11-10T12:00:00Z",
+  "expiresAt": "2026-11-10T13:00:00Z",
+  "participants": [
+    {"studentId": "7181be0e-4bd8-4852-9121-a941c8d423f4", "nickname": "Алан"},
+    {"studentId": "678e8386-121b-4e66-b5b1-1f106801756c", "nickname": "Айша"}
+  ],
+  "notes": "Example metadata only. Never use this JSON as a signed permit or device credential."
+}
