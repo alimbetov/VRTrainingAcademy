@@ -17,12 +17,14 @@ public final class OrganizationLicensingService {
     private final LicenseStore store;
     private final LicensingAuthorization authorization;
     private final Clock clock;
+    private final LicensableCollectionCatalog catalog;
 
     public OrganizationLicensingService(LicenseStore store, LicensingAuthorization authorization,
-                                        Clock clock) {
+                                        LicensableCollectionCatalog catalog, Clock clock) {
         this.store = Objects.requireNonNull(store);
         this.authorization = Objects.requireNonNull(authorization);
         this.clock = Objects.requireNonNull(clock);
+        this.catalog = Objects.requireNonNull(catalog);
     }
 
     public Organization register(String authenticatedSubject, String verifiedEmail,
@@ -59,6 +61,8 @@ public final class OrganizationLicensingService {
         if (!authorization.isPlatformAdministrator(adminSubject))
             throw new SecurityException("Platform administrator required");
         requireTerms(deviceLimit, collectionIds);
+        if (!catalog.allLicensable(collectionIds))
+            throw new SecurityException("Collections are not published/licensable");
         var now = clock.instant();
         if (expiresAt == null || !expiresAt.isAfter(now)
                 || expiresAt.isAfter(now.plus(Duration.ofDays(3660))))
@@ -66,12 +70,20 @@ public final class OrganizationLicensingService {
         var request = store.request(Objects.requireNonNull(requestId))
                 .orElseThrow(() -> new SecurityException("Unknown license request"));
         if (request.status() != RequestStatus.PENDING)
-            throw new IllegalStateException("License request already resolved");
+            throw new LicenseConflictException("License request already resolved");
         if (deviceLimit > request.requestedDevices()
                 || !request.collections().containsAll(collectionIds))
             throw new SecurityException("Issue only requested scope");
         return store.approve(requestId, now, expiresAt, deviceLimit,
                 Set.copyOf(collectionIds), adminSubject);
+    }
+
+    public LicenseRequest getRequestForAdmin(String adminSubject, UUID requestId) {
+        requireSubject(adminSubject);
+        if (!authorization.isPlatformAdministrator(adminSubject))
+            throw new SecurityException("Platform administrator required");
+        return store.request(Objects.requireNonNull(requestId))
+                .orElseThrow(() -> new SecurityException("Unknown request"));
     }
 
     public Entitlements myEntitlements(String ownerSubject) {
