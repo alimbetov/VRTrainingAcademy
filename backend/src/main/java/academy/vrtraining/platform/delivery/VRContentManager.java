@@ -86,6 +86,7 @@ public final class VRContentManager {
         try (var lockChannel = FileChannel.open(root.resolve(".manager.lock"),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
              FileLock ignored = lockChannel.lock()) {
+            cleanupOrphanStagingLocked();
             resumePendingEvictionsLocked(mountedOrActiveReleaseIds);
             var existing = registry.read();
             checkInventoryConsistency(existing, release.releaseId());
@@ -166,6 +167,7 @@ public final class VRContentManager {
         try (var channel = FileChannel.open(root.resolve(".manager.lock"),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
              var ignored = channel.lock()) {
+            cleanupOrphanStagingLocked();
             resumePendingEvictionsLocked(mountedOrActiveReleaseIds);
             var old = registry.read();
             var updated = old.stream().filter(e ->
@@ -222,6 +224,24 @@ public final class VRContentManager {
                     pinned == null ? Instant.now() : old.lastOpenedAt(),
                     pinned == null ? old.pinned() : pinned, old.protectedFromEviction()));
             registry.write(entries);
+        }
+    }
+
+    private void cleanupOrphanStagingLocked() throws IOException {
+        try (var paths = Files.list(installs)) {
+            for (Path dir : paths.filter(p ->
+                    p.getFileName().toString().startsWith(".staging-")).toList()) {
+                if (!Files.isDirectory(dir) || Files.isSymbolicLink(dir))
+                    throw new IOException("Unsafe leftover staging path");
+                try (var entries = Files.list(dir)) {
+                    for (Path file : entries.toList()) {
+                        if (!Files.isRegularFile(file) || Files.isSymbolicLink(file))
+                            throw new IOException("Unsafe leftover staging entry");
+                        Files.delete(file);
+                    }
+                }
+                Files.delete(dir);
+            }
         }
     }
 
