@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,6 +35,7 @@ public class DownloadGrantService {
     private final Clock clock;
     private final Duration ttl;
 
+    @Autowired
     public DownloadGrantService(PublishedReleasePort releases, DownloadEntitlementPort entitlements,
             ArtifactUrlSigner signer,
             @Value("${vr.delivery.transport:DIRECT_RUSTFS}") Transport transport,
