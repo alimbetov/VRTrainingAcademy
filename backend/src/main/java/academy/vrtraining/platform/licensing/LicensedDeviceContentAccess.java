@@ -27,7 +27,8 @@ public final class LicensedDeviceContentAccess {
     public boolean canDownloadForVerifiedDevice(UUID verifiedDeviceId, String contentId) {
         if (verifiedDeviceId == null || contentId == null || contentId.isBlank()) return false;
         var device = devices.findDevice(verifiedDeviceId);
-        if (device == null || device.state() != DeviceActivationService.State.ACTIVE) return false;
+        if (device == null || device.state() != DeviceActivationService.State.ACTIVE
+                || !devices.isDeviceWithinCurrentSeatLimit(verifiedDeviceId, clock.instant())) return false;
         try {
             UUID organizationId = UUID.fromString(device.tenantId());
             var organization = licenses.organization(organizationId);
