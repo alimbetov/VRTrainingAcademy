@@ -1,13 +1,27 @@
-# Unreal Experience Runtime — R0 design stub
+# Unreal Experience Runtime — structure-first R0
 
-This directory does **not** contain a generated Unreal project yet. Create a UE5 C++ project named `VRTrainingAcademy` in Unreal Editor, then integrate the classes below with the generated module/API macro.
+This folder currently contains **architecture, contracts and test fixtures**, not a generated or packaged Unreal project.
 
-Target architecture:
-- `UVRSessionSubsystem`: teacher-approved device sessions (R1).
-- `UVRCatalogSubsystem`: HTTP catalog DTO and cached snapshot.
-- `UVRContentSubsystem`: signed release download, verification, staging, mount (R2/R3).
-- `UVRLearningSubsystem`: lesson runtime and offline progress.
-- `BPI_Interactable`: Blueprint interaction contract.
-- `WBP_KnowledgeHub`: user-facing world discovery UI.
+## Architecture map
 
-See `SourceSketch/VRContentInstaller.h` for the installer boundary. No dynamic Quest pak support is claimed until verified on device.
+- [Knowledge hierarchy](docs/01-knowledge-hierarchy.md): World → Area → Subject → Lesson and the separate reusable Experience → 3D Module → Release graph
+- [Runtime contracts](docs/02-runtime-contracts.md): catalog/navigation/content/lesson subsystems, lifecycle and security boundaries
+- [Unreal-only roadmap](docs/03-build-sequence.md): test-first implementation sequence
+- [Catalog fixture](contracts/catalog.snapshot.v1.example.json): 3 free lessons, RU/KK/EN, a lesson placed in multiple navigation branches
+- [C++ navigation types sketch](SourceSketch/VRKnowledgeCatalogTypes.h)
+- [C++ content installer sketch](SourceSketch/VRContentInstaller.h)
+- [Pure-data contract tests](tests/test_catalog_contract.py)
+
+## Run taxonomy checks (no Unreal required)
+
+```bash
+python3 -m unittest discover -s unreal/tests -p 'test_*.py' -v
+```
+
+The tests validate the proposed JSON fixture. They are **not** UE Automation Tests or proof that the runtime is implemented.
+
+## Scope boundary
+
+No actual `.uproject`, Blueprint, 3D Level, mounted cooked content, backend adapter or Quest device test exists yet. The existing Spring Boot R0 catalog endpoint uses a simpler format than the v1 proposal. Align the wire contract in a separate reviewed change when starting integration.
+
+Priority: approve the hierarchy and runtime contracts **before** generating Unreal source assets.

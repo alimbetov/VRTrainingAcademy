@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "snapshotVersion": "2026-11-10-demo-1",
+  "defaultLocale": "en-US",
+  "localizations": {
+    "ru-RU": {
+      "world.school": "Школа",
+      "world.factory": "Завод",
+      "area.nat": "Естественные науки",
+      "area.safety": "Безопасность",
+      "subject.astronomy": "Астрономия",
+      "subject.physics": "Физика",
+      "subject.hazards": "Опасные ситуации",
+      "lesson.astro": "Солнечная система",
+      "lesson.physics": "Электрическая цепь",
+      "lesson.safety": "Найди опасности"
+    },
+    "kk-KZ": {
+      "world.school": "Мектеп",
+      "world.factory": "Зауыт",
+      "area.nat": "Жаратылыстану ғылымдары",
+      "area.safety": "Қауіпсіздік",
+      "subject.astronomy": "Астрономия",
+      "subject.physics": "Физика",
+      "subject.hazards": "Қауіпті жағдайлар",
+      "lesson.astro": "Күн жүйесі",
+      "lesson.physics": "Электр тізбегі",
+      "lesson.safety": "Қауіптерді тап"
+    },
+    "en-US": {
+      "world.school": "School",
+      "world.factory": "Factory",
+      "area.nat": "Natural Sciences",
+      "area.safety": "Safety",
+      "subject.astronomy": "Astronomy",
+      "subject.physics": "Physics",
+      "subject.hazards": "Hazards",
+      "lesson.astro": "Solar System",
+      "lesson.physics": "Electric Circuit",
+      "lesson.safety": "Find the Hazards"
+    }
+  },
+  "worlds": [
+    {
+      "id": "WORLD_SCHOOL",
+      "titleKey": "world.school",
+      "sortOrder": 10,
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "WORLD_FACTORY",
+      "titleKey": "world.factory",
+      "sortOrder": 20,
+      "state": "PUBLISHED"
+    }
+  ],
+  "areas": [
+    {
+      "id": "AREA_NATSCI",
+      "worldId": "WORLD_SCHOOL",
+      "titleKey": "area.nat",
+      "sortOrder": 10,
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "AREA_SCHOOL_SAFETY",
+      "worldId": "WORLD_SCHOOL",
+      "titleKey": "area.safety",
+      "sortOrder": 20,
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "AREA_FACTORY_SAFETY",
+      "worldId": "WORLD_FACTORY",
+      "titleKey": "area.safety",
+      "sortOrder": 10,
+      "state": "PUBLISHED"
+    }
+  ],
+  "subjects": [
+    {
+      "id": "SUBJECT_ASTRONOMY",
+      "areaId": "AREA_NATSCI",
+      "titleKey": "subject.astronomy",
+      "sortOrder": 10,
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "SUBJECT_PHYSICS",
+      "areaId": "AREA_NATSCI",
+      "titleKey": "subject.physics",
+      "sortOrder": 20,
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "SUBJECT_SCHOOL_HAZARDS",
+      "areaId": "AREA_SCHOOL_SAFETY",
+      "titleKey": "subject.hazards",
+      "sortOrder": 10,
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "SUBJECT_FACTORY_HAZARDS",
+      "areaId": "AREA_FACTORY_SAFETY",
+      "titleKey": "subject.hazards",
+      "sortOrder": 10,
+      "state": "PUBLISHED"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "ASTRO-001",
+      "titleKey": "lesson.astro",
+      "experienceId": "EXP-SOLAR-TOUR",
+      "accessHint": "FREE",
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "PHY-001",
+      "titleKey": "lesson.physics",
+      "experienceId": "EXP-CIRCUIT",
+      "accessHint": "FREE",
+      "state": "PUBLISHED"
+    },
+    {
+      "id": "SAFE-001",
+      "titleKey": "lesson.safety",
+      "experienceId": "EXP-HAZARD-HUNT",
+      "accessHint": "FREE",
+      "state": "PUBLISHED"
+    }
+  ],
+  "placements": [
+    {
+      "worldId": "WORLD_SCHOOL",
+      "areaId": "AREA_NATSCI",
+      "subjectId": "SUBJECT_ASTRONOMY",
+      "lessonId": "ASTRO-001",
+      "sortOrder": 10
+    },
+    {
+      "worldId": "WORLD_SCHOOL",
+      "areaId": "AREA_NATSCI",
+      "subjectId": "SUBJECT_PHYSICS",
+      "lessonId": "PHY-001",
+      "sortOrder": 20
+    },
+    {
+      "worldId": "WORLD_SCHOOL",
+      "areaId": "AREA_SCHOOL_SAFETY",
+      "subjectId": "SUBJECT_SCHOOL_HAZARDS",
+      "lessonId": "SAFE-001",
+      "sortOrder": 10
+    },
+    {
+      "worldId": "WORLD_FACTORY",
+      "areaId": "AREA_FACTORY_SAFETY",
+      "subjectId": "SUBJECT_FACTORY_HAZARDS",
+      "lessonId": "SAFE-001",
+      "sortOrder": 10
+    }
+  ],
+  "experiences": [
+    {
+      "id": "EXP-SOLAR-TOUR",
+      "requiredModuleIds": [
+        "MOD-SOLAR"
+      ],
+      "entryLevel": "/Game/Lessons/Solar/LV_Solar"
+    },
+    {
+      "id": "EXP-CIRCUIT",
+      "requiredModuleIds": [
+        "MOD-ELECTRIC-LAB"
+      ],
+      "entryLevel": "/Game/Lessons/Physics/LV_Circuit"
+    },
+    {
+      "id": "EXP-HAZARD-HUNT",
+      "requiredModuleIds": [
+        "MOD-WORKSHOP"
+      ],
+      "entryLevel": "/Game/Lessons/Safety/LV_Workshop"
+    }
+  ]
+}
