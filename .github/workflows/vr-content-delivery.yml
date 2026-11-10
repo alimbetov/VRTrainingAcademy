@@ -1,8 +1,8 @@
-name: VR content delivery reference tests
+name: VRTrainingAcademy backend and PostgreSQL contract tests
 on:
   push:
     branches:
-      - feat/r1-signed-content-delivery-foundation
+      - feat/r3-classroom-session-learning-progress
   pull_request:
     paths:
       - 'backend/**'
@@ -12,6 +12,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vrtest
+          POSTGRES_PASSWORD: vrtest
+          POSTGRES_DB: vrtraining
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vrtest -d vrtraining"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      VRTA_TEST_PG_JDBC_URL: jdbc:postgresql://localhost:5432/vrtraining
+      VRTA_TEST_PG_USER: vrtest
+      VRTA_TEST_PG_PASSWORD: vrtest
     defaults:
       run:
         working-directory: backend
@@ -22,5 +40,5 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Build and run JUnit
+      - name: Build, unit and PostgreSQL integration tests
         run: mvn -B --no-transfer-progress clean verify
