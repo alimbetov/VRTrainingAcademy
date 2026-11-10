@@ -1,67 +1,70 @@
-# DEC-EDU-04 — Language at Quest activation, collection selection from list
+# DEC-EDU-04 — Number → Language → Lesson
 
-Accepted product flow, 2026-11-10.
+Accepted VRTrainingAcademy classroom journey, 2026-11-10.
+Supersedes the earlier proposal that the teacher sets a permanent Quest locale
+at device activation. The teacher activates the **device for a school** only.
 
-## User journey
-1. Quest launches VRTrainingAcademy and displays a short activation code.
-2. On the teacher's website, an authorized administrator signs in, confirms
-   the device code, binds the Quest to a school and **chooses interface language**:
-   Kazakh (kk-KZ), Russian (ru-RU), or English (en-US).
-3. Backend persists the chosen locale in the registered device record.
-4. On restart, Quest reads its authorized device configuration, applying
-   interface localization; cached locale is available offline.
-5. After student enters a **numeric student number** (no mandatory name),
-   the application shows the **collection list** filtered for that school,
-   this device, language, platform/runtime and published entitlements.
-6. Student/teacher selects a collection; the selected release is retrieved
-   through the existing R2 Download Grant, verified and installed; the lesson
-   is then opened in a school-local Daily Classroom Session.
-7. Teacher sees **today's** stats by number; prior days are kept for up to
-   30 days subject to offline acknowledgments/holds.
+## Physical user journey
 
-## Decision
-- Device locale is a **default device preference**, not part of the device
-  identity or cryptographic trust proof. Authorized teacher/admin can later
-  change it without factory resetting or reactivating the headset.
-- No nickname required. Number belongs to a classroom, not a physical Quest.
-- Collection is a domain concept above lesson, not an arbitrary URL or RustFS
-  key. Existing public R0 catalog is a demo, **not the authorized collection list**.
-- Do not send a client-selected tenant ID or trust client assertions that a
-  collection is published or licensed. The Backend resolves publication and
-  entitlement, then issues scoped Download Grant.
-- A collection without localization in the activated locale must be excluded
-  or explicitly use a separately approved fallback policy. MVP excludes it.
-- Locale does not change an existing signed release. Different localized
-  releases are immutable content packages with independent signatures.
-- A collection is selected **per learning session**; the device language
-  persists across days, but daily progress starts from zero.
+1. On a phone or PC the teacher/admin authorizes the Quest activation code.
+2. Quest is registered to the organization and may receive assigned daily classroom sessions.
+3. Student puts on Quest, types **numeric student number** (no name, nickname or password).
+4. Student selects **language for this learning attempt**:
+   Қазақша (kk-KZ), Русский (ru-RU), English (en-US).
+5. Quest shows **available lessons** within the collection assigned to the
+   classroom/session by an authorized teacher. This menu contains only lessons
+   published, entitled to the school, available for the selected language and
+   compatible with the Quest/runtime.
+6. Student selects a lesson and starts a new attempt; Backend binds student UUID,
+   daily session UUID, device UUID, selected language, lesson ID/revision and
+   signed content release. Client uses R2 Download Grant for any missing assets.
+7. Quest saves learning events offline if necessary; Backend reports only
+   **today's results** by number, storing history for up to **30 days**.
+8. Ending the attempt resets learner-specific locale/selection and temporary
+   state; the next student can choose a different language without
+   reactivating Quest or redownloading unrelated resources.
 
-## Draft implementation
-- Pure policy `DeviceLearningSelectionPolicy` filters published/entitled/
-  language-compatible choices; JUnit verifies negative authorization cases.
-- SQL `R3_4__device_locale_and_collection.sql` adds persisted device locale and
-  optional `collection_id` for classroom session (requires migration review).
-- These are domain/database contracts, **not** a live catalog REST API.
-- Teacher activation web form, device config update API, persisted collection
-  publication table, license entitlement adapter and Unreal picker remain to do.
-- Current R2 public demo catalog contains worlds and lessons only and MUST NOT
-  be considered sufficient authority to return downloadable collections.
+## Data boundaries
 
-## API design (future, not yet exposed)
-- `POST /api/v1/devices/activation/approve`: code, organization, locale;
-  administrator authentication/organization membership required.
-- `GET /api/v1/device/me/config`: bound locale and authorized session status.
-- `GET /api/v1/device/me/collections`: only published, tenant-entitled,
-  platform/runtime/localized collection metadata.
-- `POST /api/v1/device/sessions/{sessionId}/collection`: selected collection ID;
-  server rechecks ownership, entitlement, published release and session scope.
-- Existing R2 download grant endpoint remains independent, with hardened
-  device-bound authorization to be completed before real Quest deployment.
+- Student number is classroom-scoped and not proof of identity.
+- Locale and selected lesson belong to the **learning attempt**, not the
+  registered device. No global device locale override by a learner.
+- A teacher may assign a collection to a daily session; a student selects
+  a **lesson from that collection**. The teacher can revise assignments.
+- Backend must use the authenticated device, authorized classroom membership,
+  teacher assignment, trusted publication and entitlements when filtering the
+  list and when accepting the final selected lesson.
+- A collection is not a RustFS object key, and the R0 public demo catalog
+  does not prove entitlements. Published localized content is immutable and
+  verifies Ed25519 manifest signature plus artifact SHA-256.
+- Missing language variants are excluded for MVP, rather than silently
+  playing a different language.
+- Day boundary follows organization's IANA timezone. Result count/score
+  starts from zero next day; cleanup after 30 days must not drop unacked
+  offline events or data under hold.
 
-## Acceptance
-- Same Quest stays in selected language across reboot and offline restart.
-- Cross-tenant/unpublished/unlicensed/wrong locale collection hidden and
-  rejected when ID is manually forged.
-- Choice persists on a session, not as a global mutable current lesson.
-- Changing language requires authorized administrator, and refreshes listing.
-- Daily statistics and 30-day retention unaffected by language change.
+## Code added in this PR
+
+- `DeviceLearningSelectionPolicy.LearnerChoice` (studentId + sessionId +
+  locale + lessonId), `LessonChoice`, and trusted candidate filtering.
+- JUnit tests for per-attempt language, wrong collection, unpublished, missing
+  entitlement and unsupported translation.
+- `R3_4__device_locale_and_collection.sql` adds learner_locale and
+  selected_lesson_id to attempts, plus assigned collection_id to session.
+  Nullable columns preserve existing R3 rows.
+- Existing PostgreSQL 16 integration CI applies migration R3_4.
+
+## Not yet production-implemented
+
+No real device UI, speech input, per-attempt selection API, persistent
+Content Domain lesson/collection catalog, teacher collection assignment,
+trusted sender-constrained device credentials or physical Quest E2E.
+Current R3 session scheduling still expects an explicit lessonId. Integrating
+a **session-level collection assignment** and **student-level lesson selection**
+requires a reviewed change to those contracts plus acceptance tests.
+No automatic 30-day cleanup worker is running.
+
+Proposed endpoints (future; NOT exposed):
+- `GET /api/v1/device/me/sessions/{id}/lessons?locale=kk-KZ`
+- `POST /api/v1/device/me/sessions/{id}/attempts` with student number,
+  locale and chosen lessonId, all verified server-side.
