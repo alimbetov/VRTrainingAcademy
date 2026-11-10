@@ -63,6 +63,17 @@ public class DeviceActivationController {
                 request.flowId(), request.userCode());
     }
 
+    @DeleteMapping("/api/v1/organizations/me/devices/{deviceId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revoke(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID deviceId)
+            throws GeneralSecurityException {
+        if (jwt == null || jwt.getSubject() == null)
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        UUID organizationId = licenses.byOwner(jwt.getSubject())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN)).id();
+        service.revoke(jwt.getSubject(), organizationId.toString(), deviceId);
+    }
+
     @PostMapping("/api/v1/device-activations/{flowId}/complete")
     public CompletedDevice complete(@PathVariable UUID flowId,
             @Valid @RequestBody Complete request) throws GeneralSecurityException {
