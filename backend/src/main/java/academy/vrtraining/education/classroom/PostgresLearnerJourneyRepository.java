@@ -70,9 +70,11 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
     }
 
     @Override public Attempt beginSelectedAttempt(UUID sessionId, UUID deviceId, UUID studentId,
-                                                  String locale, String lessonId, String releaseId,
+                                                  String collectionId, String locale, String lessonId, String releaseId,
                                                   Instant now) {
         DeviceLearningSelectionPolicy.requireLocale(locale);
+        if (collectionId == null || !collectionId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}"))
+            throw new IllegalArgumentException("Invalid collection");
         UUID attemptId = UUID.randomUUID();
         try (var db = connection();
              var stmt = db.prepareStatement(
@@ -83,7 +85,7 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
                 "FROM education.classroom_session s " +
                 "JOIN education.student_profile p ON p.classroom_id=s.classroom_id " +
                 "WHERE s.session_id=? AND s.device_id=? AND s.active=true " +
-                "AND s.collection_id IS NOT NULL " +
+                "AND s.collection_id=? " +
                 "AND p.student_id=? AND p.active=true AND p.student_number IS NOT NULL " +
                 "AND ? >= s.begins_at AND ? < s.ends_at")) {
             stmt.setObject(1, attemptId);
@@ -94,9 +96,10 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
             stmt.setString(6, releaseId);
             stmt.setObject(7, sessionId);
             stmt.setObject(8, deviceId);
-            stmt.setObject(9, studentId);
-            stmt.setTimestamp(10, Timestamp.from(now));
+            stmt.setObject(9, collectionId);
+            stmt.setObject(10, studentId);
             stmt.setTimestamp(11, Timestamp.from(now));
+            stmt.setTimestamp(12, Timestamp.from(now));
             if (stmt.executeUpdate() != 1)
                 throw new SecurityException("Session or student not authorized for lesson");
             return new Attempt(attemptId, sessionId, studentId, deviceId,
