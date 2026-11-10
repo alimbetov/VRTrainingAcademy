@@ -114,13 +114,13 @@ class PostgresClassroomStoreIntegrationTest {
         assertEquals(numbered.id(), journeyStore.studentByNumber(classroom.id(), 247));
         assertNull(journeyStore.assignedCollection(lesson.id()));
         assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
-                lesson.id(), device, numbered.id(), "kk-KZ", "PHY-001", "release-1",
+                lesson.id(), device, numbered.id(), "PHYSICS", "kk-KZ", "PHY-001", "release-1",
                 from.plusSeconds(70)));
         assertTrue(journeyStore.assign(lesson.id(), classroom.id(), device, "PHYSICS"));
         assertEquals("PHYSICS", journeyStore.assignedCollection(lesson.id()));
         assertFalse(journeyStore.assign(lesson.id(), classroom.id(), UUID.randomUUID(), "CHEMISTRY"));
         assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
-                lesson.id(), UUID.randomUUID(), numbered.id(), "kk-KZ",
+                lesson.id(), UUID.randomUUID(), numbered.id(), "PHYSICS", "kk-KZ",
                 "PHY-001", "release-1", from.plusSeconds(70)));
         var selectedAttempt = journeyStore.beginSelectedAttempt(
                 lesson.id(), device, numbered.id(), "kk-KZ", "PHY-001", "release-1",
