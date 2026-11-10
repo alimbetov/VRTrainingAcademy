@@ -166,7 +166,7 @@ public final class PostgresLicenseStore implements LicenseStore {
                     }
                 }
                 if (request.status() != RequestStatus.PENDING)
-                    throw new IllegalStateException("Already approved or rejected");
+                    throw new LicenseConflictException("Already approved or rejected");
                 if (devices > request.requestedDevices()
                         || !request.collections().containsAll(collections))
                     throw new SecurityException("Commercial scope exceeds approved request");
@@ -192,7 +192,7 @@ public final class PostgresLicenseStore implements LicenseStore {
                     q.setTimestamp(1, Timestamp.from(from));
                     q.setString(2, admin);
                     q.setObject(3, requestId);
-                    if (q.executeUpdate() != 1) throw new IllegalStateException("Request resolved concurrently");
+                    if (q.executeUpdate() != 1) throw new LicenseConflictException("Request resolved concurrently");
                 }
                 db.commit();
                 return new License(licenseId, request.organizationId(),
