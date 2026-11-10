@@ -83,6 +83,21 @@ class VRContentManagerTest {
         } finally { server.stop(0); }
     }
 
+    @Test void restartCleansOrphanInstallerStagingWithoutTouchingLearnerFiles() throws Exception {
+        var pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        Path device = root.resolve("device");
+        Path orphan = device.resolve("installed/.staging-crash-001");
+        Files.createDirectories(orphan);
+        Files.writeString(orphan.resolve("world.pak"), "partial");
+        Path progress = device.resolve("progress.sqlite");
+        Files.writeString(progress, "progress survives");
+        var manager = new VRContentManager(device, URI.create("https://rustfs.example.org"),
+                false, pair.getPublic(), "quest", "runtime-1", 0, 3);
+        assertTrue(manager.recoverInventory(Set.of()).isEmpty());
+        assertFalse(Files.exists(orphan));
+        assertEquals("progress survives", Files.readString(progress));
+    }
+
     @Test void corruptedDownloadIsDiscardedAndCleanRetrySucceeds() throws Exception {
         byte[] expected = "GOOD".getBytes(StandardCharsets.UTF_8);
         var served = new java.util.concurrent.atomic.AtomicReference<>(
