@@ -47,6 +47,7 @@ public final class NumberLanguageLessonJourney {
     public LessonMenu lessons(String tenantId, UUID trustedDeviceId, UUID sessionId,
                               int number, String locale) {
         var context = context(tenantId, trustedDeviceId, sessionId, number);
+        requireActive(context.session(), clock.instant());
         DeviceLearningSelectionPolicy.requireLocale(locale);
         String collection = repository.assignedCollection(sessionId);
         if (collection == null || collection.isBlank()) throw new SecurityException("No assigned collection");
@@ -59,9 +60,7 @@ public final class NumberLanguageLessonJourney {
         Objects.requireNonNull(request);
         var context = context(tenantId, trustedDeviceId, request.sessionId(), request.studentNumber());
         var now = clock.instant();
-        if (!context.session.active() || now.isBefore(context.session.startsAt())
-                || !now.isBefore(context.session.endsAt()))
-            throw new SecurityException("Session expired or inactive");
+        requireActive(context.session(), now);
         String collection = repository.assignedCollection(request.sessionId());
         if (collection == null || collection.isBlank()) throw new SecurityException("No assigned collection");
         var permitted = catalog.eligibleLessons(tenantId, trustedDeviceId, collection, request.locale());
@@ -69,6 +68,11 @@ public final class NumberLanguageLessonJourney {
                 permitted, request.lessonId());
         return repository.beginSelectedAttempt(request.sessionId(), trustedDeviceId,
                 context.studentId(), collection, request.locale(), lesson.lessonId(), lesson.releaseId(), now);
+    }
+
+    private static void requireActive(Session session, java.time.Instant now) {
+        if (!session.active() || now.isBefore(session.startsAt()) || !now.isBefore(session.endsAt()))
+            throw new SecurityException("Session expired or inactive");
     }
 
     private Context context(String tenantId, UUID deviceId, UUID sessionId, int studentNumber) {
