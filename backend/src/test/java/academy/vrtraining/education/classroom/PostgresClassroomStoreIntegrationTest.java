@@ -115,7 +115,15 @@ class PostgresClassroomStoreIntegrationTest {
             assertEquals(1,(p2.get()?1:0)+(p3.get()?1:0),
                     "Concurrent activation cannot oversubscribe last seat");
         } finally { pool.shutdownNow(); }
+        var devicePolicy = new academy.vrtraining.platform.licensing.LicensedDeviceContentAccess(
+                licenseStore,guarded,
+                contentId -> "demo-physics".equals(contentId)
+                        ? java.util.Optional.of("DEMO") : java.util.Optional.empty(),
+                java.time.Clock.fixed(testNow,java.time.ZoneOffset.UTC));
+        assertTrue(devicePolicy.canDownloadForVerifiedDevice(a.deviceId(),"demo-physics"));
+        assertFalse(devicePolicy.canDownloadForVerifiedDevice(a.deviceId(),"not-published"));
         guardService.revoke("owner",licensedOrg.id().toString(),a.deviceId());
+        assertFalse(devicePolicy.canDownloadForVerifiedDevice(a.deviceId(),"demo-physics"));
         var fourth=approvedFlow(guardService,licensedOrg.id().toString());
         assertEquals(academy.vrtraining.platform.device.DeviceActivationService.State.ACTIVE,
                 guardService.complete(fourth.flowId(),fourth.proof()).state());
