@@ -29,8 +29,12 @@ public class LicensingRuntimeConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(LicensableCollectionCatalog.class)
+    LicensableCollectionCatalog denyUnpublishedCollections() { return ids -> false; }
+
+    @Bean
     OrganizationLicensingService organizationLicensingService(
-            LicenseStore store, LicensingAuthorization auth) {
-        return new OrganizationLicensingService(store, auth, Clock.systemUTC());
+            LicenseStore store, LicensingAuthorization auth, LicensableCollectionCatalog catalog) {
+        return new OrganizationLicensingService(store, auth, catalog, Clock.systemUTC());
     }
 }
