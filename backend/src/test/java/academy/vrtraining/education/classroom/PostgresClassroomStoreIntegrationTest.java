@@ -21,6 +21,7 @@ class PostgresClassroomStoreIntegrationTest {
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_2__device_activation_foundation.sql"));
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_3__daily_student_numbers.sql"));
         sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_4__device_locale_and_collection.sql"));
+        sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_5__selected_lesson_release.sql"));
         sql = sql.lines().map(line -> line.stripLeading().startsWith("--") ? "" : line)
                 .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
         try (var db = DriverManager.getConnection(url, user, password);
@@ -109,5 +110,33 @@ class PostgresClassroomStoreIntegrationTest {
                 java.time.LocalDate.of(2026, 11, 11)).isEmpty());
         // Yesterday's records stay stored; today's report starts at zero.
         assertEquals(20, store.scores(lesson.id()).getFirst().score());
+        var journeyStore = new PostgresLearnerJourneyRepository(url, user, password);
+        assertEquals(numbered.id(), journeyStore.studentByNumber(classroom.id(), 247));
+        assertNull(journeyStore.assignedCollection(lesson.id()));
+        assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
+                lesson.id(), device, numbered.id(), "kk-KZ", "PHY-001", "release-1",
+                from.plusSeconds(70)));
+        assertTrue(journeyStore.assign(lesson.id(), classroom.id(), device, "PHYSICS"));
+        assertEquals("PHYSICS", journeyStore.assignedCollection(lesson.id()));
+        assertFalse(journeyStore.assign(lesson.id(), classroom.id(), UUID.randomUUID(), "CHEMISTRY"));
+        assertThrows(SecurityException.class, () -> journeyStore.beginSelectedAttempt(
+                lesson.id(), UUID.randomUUID(), numbered.id(), "kk-KZ",
+                "PHY-001", "release-1", from.plusSeconds(70)));
+        var selectedAttempt = journeyStore.beginSelectedAttempt(
+                lesson.id(), device, numbered.id(), "kk-KZ", "PHY-001", "release-1",
+                from.plusSeconds(70));
+        assertEquals(numbered.id(), selectedAttempt.studentId());
+        try (var db = DriverManager.getConnection(url, user, password);
+             var stmt = db.prepareStatement(
+                 "SELECT learner_locale,selected_lesson_id,selected_release_id " +
+                 "FROM education.learning_attempt WHERE attempt_id=?")) {
+            stmt.setObject(1, selectedAttempt.id());
+            try (var r = stmt.executeQuery()) {
+                assertTrue(r.next());
+                assertEquals("kk-KZ", r.getString(1));
+                assertEquals("PHY-001", r.getString(2));
+                assertEquals("release-1", r.getString(3));
+            }
+        }
     }
 }
