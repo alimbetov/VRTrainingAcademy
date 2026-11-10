@@ -15,13 +15,20 @@ import java.util.UUID;
 /** Transactional PostgreSQL adapter for one-use device activation. */
 public final class PostgresDeviceActivationStore implements DeviceActivationService.Store {
     private final String url, user, password;
+    private final boolean enforceLicenseSeats;
 
     public PostgresDeviceActivationStore(String url, String user, String password) {
+        this(url, user, password, false); // Legacy test adapter; runtime explicitly enforces seats.
+    }
+
+    public PostgresDeviceActivationStore(String url, String user, String password,
+                                         boolean enforceLicenseSeats) {
         if (url == null || !url.startsWith("jdbc:postgresql://"))
             throw new IllegalArgumentException("Postgres connection required");
         this.url = url;
         this.user = java.util.Objects.requireNonNull(user);
         this.password = java.util.Objects.requireNonNull(password);
+        this.enforceLicenseSeats = enforceLicenseSeats;
     }
 
     private java.sql.Connection connect() throws SQLException {
@@ -123,6 +130,7 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
                 }
                 if (p.state() != State.APPROVED || !now.isBefore(p.expiresAt())
                         || p.tenantId() == null) { db.rollback(); return null; }
+                if (enforceLicenseSeats) requireAvailableLicensedSeat(db, p.tenantId(), now);
                 UUID deviceId = UUID.randomUUID();
                 try (var q = db.prepareStatement(
                         "INSERT INTO platform.registered_device(device_id,tenant_id,public_key_spki,state,activated_at) VALUES(?,?,?,'ACTIVE',?)")) {
@@ -142,6 +150,49 @@ public final class PostgresDeviceActivationStore implements DeviceActivationServ
                 return new Device(deviceId, p.tenantId(), p.publicKey(), State.ACTIVE);
             } catch (Exception e) { db.rollback(); throw e; }
         } catch (Exception e) { throw failed(e); }
+    }
+
+    /**
+     * Lock organization BEFORE reading the active license and active-device
+     * count. Every licensed activation uses this same lock, so concurrent
+     * activations cannot oversubscribe the final seat.
+     */
+    private static void requireAvailableLicensedSeat(java.sql.Connection db,
+                                                     String tenantId, Instant now) throws SQLException {
+        UUID organizationId;
+        try { organizationId = UUID.fromString(tenantId); }
+        catch (IllegalArgumentException e) { throw new SecurityException("Invalid organization identity"); }
+        try (var lock = db.prepareStatement(
+                "SELECT organization_id FROM platform.organization_account " +
+                "WHERE organization_id=? AND status='ACTIVE' FOR UPDATE")) {
+            lock.setObject(1, organizationId);
+            try (var row = lock.executeQuery()) {
+                if (!row.next()) throw new SecurityException("Organization inactive or unknown");
+            }
+        }
+        int seats;
+        try (var license = db.prepareStatement(
+                "SELECT device_limit FROM platform.organization_license " +
+                "WHERE organization_id=? AND revoked_at IS NULL AND starts_at<=? AND expires_at>? " +
+                "ORDER BY CASE WHEN kind='COMMERCIAL' THEN 0 ELSE 1 END, " +
+                "expires_at DESC LIMIT 1")) {
+            license.setObject(1, organizationId);
+            license.setTimestamp(2, Timestamp.from(now));
+            license.setTimestamp(3, Timestamp.from(now));
+            try (var row = license.executeQuery()) {
+                if (!row.next()) throw new SecurityException("No active device license");
+                seats = row.getInt(1);
+            }
+        }
+        try (var count = db.prepareStatement(
+                "SELECT count(*) FROM platform.registered_device " +
+                "WHERE tenant_id=? AND state='ACTIVE'")) {
+            count.setString(1, organizationId.toString());
+            try (var row = count.executeQuery()) {
+                row.next();
+                if (row.getLong(1) >= seats) throw new SecurityException("Device seat limit reached");
+            }
+        }
     }
 
     @Override public Device findDevice(UUID id) {
