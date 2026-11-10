@@ -20,6 +20,7 @@ vr:
     region: ${VR_DELIVERY_REGION:us-east-1}
     grant-ttl-seconds: ${VR_DELIVERY_GRANT_TTL_SECONDS:300}
   classroom:
+    school-timezone: \${VR_CLASSROOM_SCHOOL_TIMEZONE:Asia/Almaty}
     persistence-enabled: ${VR_CLASSROOM_PERSISTENCE_ENABLED:false}
     jdbc-url: ${VR_CLASSROOM_JDBC_URL:}
     jdbc-user: ${VR_CLASSROOM_JDBC_USER:}
