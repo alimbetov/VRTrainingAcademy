@@ -38,7 +38,8 @@ class NumberLanguageLessonJourneyTest {
             return classroomId.equals(id) && number == 247 ? studentId : null;
         }
         public String assignedCollection(UUID id) { return sessionId.equals(id) ? "PHYSICS" : null; }
-        public Attempt beginSelectedAttempt(UUID id, UUID d, UUID s, String locale, String lesson, String release, Instant now) {
+        public Attempt beginSelectedAttempt(UUID id, UUID d, UUID s, String collection, String locale, String lesson, String release, Instant now) {
+            assertEquals("PHYSICS", collection);
             assertEquals(sessionId, id);
             assertEquals(device, d);
             assertEquals(studentId, s);
@@ -81,6 +82,16 @@ class NumberLanguageLessonJourneyTest {
     @Test void rejectsWrongDeviceAndTenantBeforeCatalogLookup() {
         assertThrows(SecurityException.class, () -> service.lessons("school-2", device, sessionId, 247, "kk-KZ"));
         assertThrows(SecurityException.class, () -> service.lessons("school-1", UUID.randomUUID(), sessionId, 247, "kk-KZ"));
+    }
+
+    @Test void expiredSessionMustNotRevealLessonsOrStartAttempt() {
+        var expired = new NumberLanguageLessonJourney(store, auth, catalog, repo,
+                Clock.fixed(NOW.plusSeconds(3600), ZoneOffset.UTC));
+        assertThrows(SecurityException.class, () ->
+                expired.lessons("school-1", device, sessionId, 247, "kk-KZ"));
+        assertThrows(SecurityException.class, () ->
+                expired.start("school-1", device,
+                        new NumberLanguageLessonJourney.Start(sessionId, 247, "kk-KZ", "PHY-001")));
     }
 
     @Test void denyAllCatalogCannotStartARelease() {
