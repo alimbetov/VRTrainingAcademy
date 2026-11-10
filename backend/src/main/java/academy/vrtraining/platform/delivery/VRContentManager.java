@@ -86,6 +86,7 @@ public final class VRContentManager {
         try (var lockChannel = FileChannel.open(root.resolve(".manager.lock"),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
              FileLock ignored = lockChannel.lock()) {
+            resumePendingEvictionsLocked(mountedOrActiveReleaseIds);
             var existing = registry.read();
             checkInventoryConsistency(existing, release.releaseId());
             var candidateState = existing.stream().map(e ->
@@ -129,10 +130,16 @@ public final class VRContentManager {
             }
             if (decision.evictReleaseId().isPresent()) {
                 String id = decision.evictReleaseId().orElseThrow();
+                Path evictionMarker = root.resolve(".evicting-" + id);
+                Files.writeString(evictionMarker, id);
                 removeInstalledRelease(id);
                 after.removeIf(e -> e.releaseId().equals(id));
                 registry.write(after);
+                Files.delete(evictionMarker);
             }
+            // Download staging can be discarded after commit. Failure to clean it
+            // does not roll back a successfully activated release.
+            try { cleanupDownloads(partialRoot); } catch (IOException ignoredCleanup) { /* GC on recovery */ }
             return installed;
         }
     }
@@ -143,12 +150,15 @@ public final class VRContentManager {
      * automatically deleted. Any over-capacity state is reported for manual
      * inspection instead of guessing which package to remove.
      */
-    public List<LocalReleaseRegistry.Entry> recoverInventory() throws IOException {
+    public List<LocalReleaseRegistry.Entry> recoverInventory(Set<String> mountedOrActiveReleaseIds)
+            throws IOException {
+        Objects.requireNonNull(mountedOrActiveReleaseIds);
         Files.createDirectories(root);
         Files.createDirectories(installs);
         try (var channel = FileChannel.open(root.resolve(".manager.lock"),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
              var ignored = channel.lock()) {
+            resumePendingEvictionsLocked(mountedOrActiveReleaseIds);
             var old = registry.read();
             var updated = old.stream().filter(e ->
                     Files.isDirectory(installs.resolve(e.releaseId()))).toList();
@@ -207,8 +217,44 @@ public final class VRContentManager {
         }
     }
 
+    private void resumePendingEvictionsLocked(Set<String> mountedOrActiveReleaseIds)
+            throws IOException {
+        try (var paths = Files.list(root)) {
+            for (Path marker : paths.filter(p ->
+                    p.getFileName().toString().startsWith(".evicting-")).toList()) {
+                if (!Files.isRegularFile(marker) || Files.isSymbolicLink(marker))
+                    throw new IOException("Invalid eviction journal");
+                String id = marker.getFileName().toString().substring(".evicting-".length());
+                if (!id.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+                        || id.equals(".") || id.equals("..")
+                        || !Files.readString(marker).equals(id))
+                    throw new IOException("Invalid eviction journal ID");
+                if (mountedOrActiveReleaseIds.contains(id))
+                    throw new IOException("Eviction recovery blocked by active content");
+                removeInstalledRelease(id);
+                var updated = new ArrayList<>(registry.read());
+                updated.removeIf(e -> e.releaseId().equals(id));
+                registry.write(updated);
+                Files.delete(marker);
+            }
+        }
+    }
+
+    private static void cleanupDownloads(Path dir) throws IOException {
+        if (!Files.isDirectory(dir) || Files.isSymbolicLink(dir)) return;
+        try (var paths = Files.list(dir)) {
+            for (Path path : paths.toList()) {
+                if (!Files.isRegularFile(path) || Files.isSymbolicLink(path))
+                    throw new IOException("Unsafe download cleanup");
+                Files.delete(path);
+            }
+        }
+        Files.delete(dir);
+    }
+
     private void removeInstalledRelease(String releaseId) throws IOException {
         Path directory = installs.resolve(releaseId);
+        if (!Files.exists(directory)) return; // Restart after removal but before journal commit.
         if (!Files.isDirectory(directory) || Files.isSymbolicLink(directory))
             throw new IOException("Invalid eviction target");
         try (var stream = Files.list(directory)) {
