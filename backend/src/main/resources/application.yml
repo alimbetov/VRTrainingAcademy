@@ -26,8 +26,15 @@ vr:
     jdbc-user: ${VR_CLASSROOM_JDBC_USER:}
     jdbc-password: ${VR_CLASSROOM_JDBC_PASSWORD:}
   device:
+    activation-http-enabled: ${VR_DEVICE_ACTIVATION_HTTP_ENABLED:false}
     activation-enabled: ${VR_DEVICE_ACTIVATION_ENABLED:false}
     jdbc-url: ${VR_DEVICE_JDBC_URL:}
     jdbc-user: ${VR_DEVICE_JDBC_USER:}
     jdbc-password: ${VR_DEVICE_JDBC_PASSWORD:}
     activation-pepper-b64: ${VR_DEVICE_ACTIVATION_PEPPER_B64:}
+  licensing:
+    download-authorization-enabled: ${VR_LICENSING_DOWNLOAD_AUTHORIZATION_ENABLED:false}
+    persistence-enabled: ${VR_LICENSING_PERSISTENCE_ENABLED:false}
+    jdbc-url: ${VR_LICENSING_JDBC_URL:}
+    jdbc-user: ${VR_LICENSING_JDBC_USER:}
+    jdbc-password: ${VR_LICENSING_JDBC_PASSWORD:}

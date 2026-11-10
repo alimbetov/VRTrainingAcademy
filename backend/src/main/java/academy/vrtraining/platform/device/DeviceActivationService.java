@@ -38,6 +38,8 @@ public final class DeviceActivationService {
         /** Atomic compare-and-swap APPROVED to ACTIVE and create device key binding. */
         Device activate(UUID flowId, Instant now);
         Device findDevice(UUID deviceId);
+        /** Fail closed if the active device exceeds the CURRENT licensed seat cap. */
+        default boolean isDeviceWithinCurrentSeatLimit(UUID deviceId, Instant now) { return false; }
         boolean revoke(UUID deviceId, String tenantId);
     }
 

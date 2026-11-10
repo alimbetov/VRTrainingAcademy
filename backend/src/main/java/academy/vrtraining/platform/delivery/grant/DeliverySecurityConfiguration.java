@@ -24,6 +24,8 @@ public class DeliverySecurityConfiguration {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
                     .requestMatchers(HttpMethod.GET, "/api/v1/public/catalog").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/device-activations",
+                            "/api/v1/device-activations/*/complete").permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                     .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o.jwt(j -> {}))
