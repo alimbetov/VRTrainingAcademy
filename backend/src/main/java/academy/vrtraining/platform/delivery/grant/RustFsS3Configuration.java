@@ -54,7 +54,7 @@ public class RustFsS3Configuration {
                     org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "RustFS not configured");
             var request = GetObjectPresignRequest.builder().signatureDuration(ttl)
                     .getObjectRequest(GetObjectRequest.builder().bucket(bucket).key(key).build()).build();
-            return signer.presignGetObject(request).url().toURI();
+            return URI.create(signer.presignGetObject(request).url().toString());
         };
     }
 }
