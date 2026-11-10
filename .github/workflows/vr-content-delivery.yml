@@ -2,10 +2,15 @@ name: VRTrainingAcademy backend and PostgreSQL contract tests
 on:
   push:
     branches:
-      - feat/r3-classroom-session-learning-progress
+      - main
+      - 'integration/**'
+      - 'feat/**'
   pull_request:
     paths:
       - 'backend/**'
+      - 'unreal/**'
+      - 'docs/**'
+      - 'README.md'
       - '.github/workflows/vr-content-delivery.yml'
 jobs:
   backend-tests:
