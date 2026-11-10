@@ -1,6 +1,6 @@
 # R3 — Classroom Session & Learning Progress
 
-Status: domain contracts, test-first service foundation; not a production-integrated system.
+Status: executable Java domain contracts, opt-in PostgreSQL storage/teacher API, offline permit signing and device activation adapters; **not a production-integrated VR application**.
 
 ## Design decision
 
@@ -86,8 +86,13 @@ Device (proof-of-possession + scoped session grant):
 - POST /api/v1/device/sessions/{id}/attempts
 - POST /api/v1/device/attempts/{id}/events:batch
 
-The branch currently exposes **no routes** for these concepts to avoid
-accidentally authorizing client-provided device IDs via ordinary user JWT.
+Teacher management routes are implemented in `TeacherClassroomController`, but
+`VR_CLASSROOM_PERSISTENCE_ENABLED=false` by default. Even if explicitly
+enabled, `ClassroomAuthorization` denies all actions unless an independently
+verified organization/teacher-membership adapter is installed. **Device roster,
+attempt and event endpoints are NOT exposed:** ordinary user JWT must never
+impersonate a registered Quest. That boundary requires a real device
+sender-constrained credential verifier and a scoped session/attempt capability.
 
 ## Acceptance gates
 
@@ -104,6 +109,43 @@ A10: real Quest and packaged Windows with physical classroom handoff.
 
 ## Next work
 
-Add real PostgreSQL adapter with Liquibase and Testcontainers, trust-validated
-device credential verifier, teacher portal and Unreal C++ bindings. This
-foundation is intentionally narrower than the complete implementation.
+### Implemented in R3 Draft
+
+- `ClassroomSessionService`: scoped classroom roster, session schedule, nickname
+  selection, UUID attempts, idempotent events and teacher statistics.
+- `PostgresClassroomStore`: parameterized JDBC persistence and event collision
+  checks; PostgreSQL 16 service integration tests in GitHub Actions.
+- `TeacherClassroomController`: OIDC JWT teacher API **disabled by default**.
+- `OfflineSessionPermit`: signed Ed25519 permit bound to device, tenant,
+  lesson, session, roster and an 8-hour-or-shorter expiration. A real Quest
+  client must use a pinned verification key and protect against local clock
+  manipulation. Golden vectors/C++ port still required.
+- `DeviceActivationService`: one-time short code confirmed by authenticated
+  administrator and Ed25519 proof by the Quest; HMAC-SHA256 server pepper.
+- `PostgresDeviceActivationStore`: atomic approval/activation with 10-attempt
+  cap, revocation, registered public keys. No public Device Activation API yet.
+- `unreal/contracts/classroom.session.v1.example.json`: roster fixture,
+  `unreal/tests/test_classroom_contract.py` plus C++ noncompiling sketch.
+- `backend/db/migrations/R3__classroom_learning_foundation.sql` and
+  `R3_2__device_activation_foundation.sql`: reviewed SQL scripts, **manual
+  application currently**; no Liquibase integration.
+- `backend/.env.classroom-device.example`: secure disabled-default settings.
+
+### Remaining deployment/security blockers
+
+1. OIDC Authorization Server Device Flow endpoints and teacher UI for code entry.
+2. Real organization membership authority for teacher and device activation.
+3. Device sender-constrained access token or challenge authorization for every
+   device request, with key rotation and active/revoked checks.
+4. Trustworthy server-generated assessment scoring; never accept client
+   scoreDelta as authoritative evidence for high-stakes grades.
+5. Native Unreal UI: nickname picker, session switch and private local event
+   outbox with restart-safe acknowledgements and one active learner at a time.
+6. Signed offline session delivery, time rollback prevention, expiry and
+   device revocation policy, replay and outbox synchronization tests.
+7. Liquibase rollout with migration ordering, rollback strategy, real DB
+   connection pool, backups and privacy retention/pseudonymization controls.
+8. End-to-end teacher portal + packaged Windows + physical Quest acceptance.
+
+**Do not enable production access or merge this as a finished classroom
+authorization feature.** A passing SQL/Java CI is foundation qualification only.
