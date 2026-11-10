@@ -24,13 +24,20 @@ public final class PostgresClassroomStore implements ClassroomStore {
     private final String url;
     private final String username;
     private final String password;
+    private final java.time.ZoneId schoolTimezone;
 
     public PostgresClassroomStore(String url, String username, String password) {
+        this(url, username, password, java.time.ZoneId.of("Asia/Almaty"));
+    }
+
+    public PostgresClassroomStore(String url, String username, String password,
+                                 java.time.ZoneId schoolTimezone) {
         if (url == null || !url.startsWith("jdbc:postgresql://"))
             throw new IllegalArgumentException("PostgreSQL JDBC URL required");
         this.url = url;
         this.username = java.util.Objects.requireNonNull(username);
         this.password = java.util.Objects.requireNonNull(password);
+        this.schoolTimezone = java.util.Objects.requireNonNull(schoolTimezone);
     }
 
     private Connection connect() throws SQLException {
@@ -119,15 +126,17 @@ public final class PostgresClassroomStore implements ClassroomStore {
         // Only an already registered/authorized device may be passed by the service.
         try (var db = connect();
              var stmt = db.prepareStatement(
-                 "INSERT INTO education.classroom_session(session_id,classroom_id,device_id,lesson_id,lesson_revision,begins_at,ends_at,created_by_subject) " +
-                 "SELECT ?,classroom_id,?,?,?,?,?,teacher_subject FROM education.classroom WHERE classroom_id=?")) {
+                 "INSERT INTO education.classroom_session(session_id,classroom_id,device_id,lesson_id,lesson_revision,begins_at,ends_at,created_by_subject,school_timezone,teaching_date) " +
+                 "SELECT ?,classroom_id,?,?,?,?,?,teacher_subject,?,? FROM education.classroom WHERE classroom_id=?")) {
             stmt.setObject(1, id);
             stmt.setObject(2, deviceId);
             stmt.setString(3, lessonId);
             stmt.setString(4, revision);
             stmt.setTimestamp(5, Timestamp.from(startsAt));
             stmt.setTimestamp(6, Timestamp.from(endsAt));
-            stmt.setObject(7, classroomId);
+            stmt.setString(7, schoolTimezone.getId());
+            stmt.setObject(8, DailyStudentNumberPolicy.teachingDate(startsAt, schoolTimezone));
+            stmt.setObject(9, classroomId);
             if (stmt.executeUpdate() != 1) throw new IllegalStateException("Unknown classroom");
             return new Session(id, classroomId, deviceId, lessonId, revision, startsAt, endsAt, true);
         } catch (SQLException e) { throw failure(e); }
@@ -230,6 +239,28 @@ public final class PostgresClassroomStore implements ClassroomStore {
         } catch (SQLException e) { throw failure(e); }
         catch (RuntimeException e) { throw e; }
         catch (Exception e) { throw new IllegalStateException("Event transaction failed", e); }
+    }
+
+    @Override public List<Score> scoresForDay(UUID classroomId, java.time.LocalDate day) {
+        try (var db = connect();
+             var stmt = db.prepareStatement(
+                "SELECT a.student_id,a.attempt_id,COALESCE(SUM(e.score_delta),0)::integer," +
+                "COUNT(e.event_id)::integer,COALESCE(MAX(e.occurred_at),a.started_at) " +
+                "FROM education.classroom_session s " +
+                "JOIN education.learning_attempt a ON a.session_id=s.session_id " +
+                "LEFT JOIN education.learning_event e ON e.attempt_id=a.attempt_id " +
+                "WHERE s.classroom_id=? AND s.teaching_date=? " +
+                "GROUP BY a.student_id,a.attempt_id,a.started_at ORDER BY a.started_at")) {
+            stmt.setObject(1, classroomId);
+            stmt.setObject(2, day);
+            try (var r = stmt.executeQuery()) {
+                var result = new ArrayList<Score>();
+                while (r.next()) result.add(new Score((UUID) r.getObject(1),
+                        (UUID) r.getObject(2), r.getInt(3), r.getInt(4),
+                        r.getTimestamp(5).toInstant()));
+                return List.copyOf(result);
+            }
+        } catch (SQLException e) { throw failure(e); }
     }
 
     @Override public List<Score> scores(UUID sessionId) {
