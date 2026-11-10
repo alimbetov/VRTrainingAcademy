@@ -2,7 +2,8 @@ package academy.vrtraining.platform.device;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
@@ -49,13 +50,17 @@ public final class DeviceActivationService {
     private final AdministratorAuthorization admin;
     private final Clock clock;
     private final SecureRandom random;
+    private final byte[] codePepper;
 
     public DeviceActivationService(Store store, AdministratorAuthorization admin, Clock clock,
-                                   SecureRandom random) {
+                                   SecureRandom random, byte[] codePepper) {
         this.store = Objects.requireNonNull(store);
         this.admin = Objects.requireNonNull(admin);
         this.clock = Objects.requireNonNull(clock);
         this.random = Objects.requireNonNull(random);
+        if (codePepper == null || codePepper.length < 32)
+            throw new IllegalArgumentException("At least 32 bytes secret code pepper required");
+        this.codePepper = codePepper.clone();
     }
 
     public Activation begin(PublicKey devicePublicKey) throws GeneralSecurityException {
@@ -73,7 +78,7 @@ public final class DeviceActivationService {
         random.nextBytes(challenge);
         UUID flowId = UUID.randomUUID();
         Instant expiry = clock.instant().plus(Duration.ofMinutes(10));
-        store.insert(new Pending(flowId, sha256(visible), challenge.clone(), devicePublicKey,
+        store.insert(new Pending(flowId, codeDigest(visible), challenge.clone(), devicePublicKey,
                 expiry, null, State.PENDING));
         return new Activation(flowId, visible, challenge.clone(), expiry);
     }
@@ -84,7 +89,7 @@ public final class DeviceActivationService {
         if (!admin.mayActivateDevice(adminSubject, tenantId))
             throw new GeneralSecurityException("Not authorized to activate device");
         if (code == null || !code.matches("[A-Z2-9]{4}-[A-Z2-9]{4}")
-                || !store.approve(flowId, sha256(code), tenantId, clock.instant()))
+                || !store.approve(flowId, codeDigest(code), tenantId, clock.instant()))
             throw new GeneralSecurityException("Invalid or expired activation");
     }
 
@@ -121,8 +126,9 @@ public final class DeviceActivationService {
         return message;
     }
 
-    private static byte[] sha256(String code) throws GeneralSecurityException {
-        return MessageDigest.getInstance("SHA-256")
-                .digest(code.getBytes(StandardCharsets.UTF_8));
+    private byte[] codeDigest(String code) throws GeneralSecurityException {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(codePepper, "HmacSHA256"));
+        return mac.doFinal(code.getBytes(StandardCharsets.UTF_8));
     }
 }
