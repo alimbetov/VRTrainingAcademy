@@ -102,7 +102,9 @@ public final class VRContentManager {
             for (var artifact : release.artifacts()) {
                 size = Math.addExact(size, artifact.sizeBytes());
             }
-            long required = Math.addExact(Math.multiplyExact(size, 2), freeSpaceReserveBytes);
+            long required;
+            try { required = Math.addExact(Math.multiplyExact(size, 2), freeSpaceReserveBytes); }
+            catch (ArithmeticException e) { throw new IOException("Content size exceeds disk budget", e); }
             if (Files.getFileStore(root).getUsableSpace() < required)
                 throw new IOException("Not enough disk space for safe staged installation");
 
