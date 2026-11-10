@@ -18,6 +18,7 @@ class PostgresClassroomStoreIntegrationTest {
         String user = System.getenv("VRTA_TEST_PG_USER");
         String password = System.getenv("VRTA_TEST_PG_PASSWORD");
         String sql = Files.readString(Path.of("db/migrations/R3__classroom_learning_foundation.sql"));
+        sql += System.lineSeparator() + Files.readString(Path.of("db/migrations/R3_2__device_activation_foundation.sql"));
         sql = sql.lines().map(line -> line.stripLeading().startsWith("--") ? "" : line)
                 .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
         try (var db = DriverManager.getConnection(url, user, password);
@@ -25,6 +26,15 @@ class PostgresClassroomStoreIntegrationTest {
             for (String command : sql.split(";")) {
                 if (!command.isBlank()) statement.execute(command);
             }
+        }
+        try (var db = DriverManager.getConnection(url, user, password);
+             var statement = db.prepareStatement(
+                "INSERT INTO platform.registered_device(device_id,tenant_id,public_key_spki,state,activated_at) VALUES (?,?,?,?,now())")) {
+            statement.setObject(1, UUID.randomUUID());
+            statement.setString(2, "school-1");
+            statement.setBytes(3, new byte[]{1, 2, 3});
+            statement.setString(4, "UNKNOWN");
+            assertThrows(java.sql.SQLException.class, statement::executeUpdate);
         }
         var store = new PostgresClassroomStore(url, user, password);
         var classroom = store.createClassroom("school-1", "7А", "teacher-1");
