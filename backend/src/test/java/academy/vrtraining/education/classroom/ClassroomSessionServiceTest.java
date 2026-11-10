@@ -14,6 +14,9 @@ class ClassroomSessionServiceTest {
     private final FakeStore db = new FakeStore();
     private final UUID device = UUID.randomUUID();
     private final ClassroomAuthorization rights = new ClassroomAuthorization() {
+        @Override public boolean teacherMayCreateClassroom(String teacher, String tenant) {
+            return teacher.equals("teacher-1") && tenant.equals("school-1");
+        }
         @Override public boolean teacherMayManage(String teacher, String tenant, UUID classroom) {
             return teacher.equals("teacher-1") && tenant.equals("school-1");
         }
