@@ -12,6 +12,7 @@ public final class ClassroomContracts {
     private ClassroomContracts() {}
 
     public record Student(UUID id, UUID classroomId, String nickname, boolean active) {}
+    public record NumberedStudent(UUID id, UUID classroomId, int number, boolean active) {}
     public record Classroom(UUID id, String tenantId, String title, String teacherSubject) {}
     public record Session(UUID id, UUID classroomId, UUID deviceId, String lessonId,
                           String lessonRevision, Instant startsAt, Instant endsAt, boolean active) {}
