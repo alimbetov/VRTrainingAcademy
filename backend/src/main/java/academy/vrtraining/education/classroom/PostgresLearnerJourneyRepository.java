@@ -64,7 +64,7 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
                 "INSERT INTO education.learning_attempt(" +
                 "attempt_id,session_id,student_id,device_id,lesson_revision,started_at," +
                 "learner_locale,selected_lesson_id,selected_release_id) " +
-                "SELECT ?,s.session_id,p.student_id,?,s.lesson_revision,?,?,?,?,? " +
+                "SELECT ?,s.session_id,p.student_id,?,s.lesson_revision,?,?,?,? " +
                 "FROM education.classroom_session s " +
                 "JOIN education.student_profile p ON p.classroom_id=s.classroom_id " +
                 "WHERE s.session_id=? AND s.device_id=? AND s.active=true " +
