@@ -35,11 +35,13 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
         try (var db = connection();
              var stmt = db.prepareStatement(
                  "UPDATE education.classroom_session SET collection_id=? " +
-                 "WHERE session_id=? AND classroom_id=? AND device_id=? AND active=true")) {
+                 "WHERE session_id=? AND classroom_id=? AND device_id=? AND active=true " +
+                 "AND NOT EXISTS (SELECT 1 FROM education.learning_attempt a WHERE a.session_id=?)")) {
             stmt.setString(1, collectionId);
             stmt.setObject(2, sessionId);
             stmt.setObject(3, classroomId);
             stmt.setObject(4, deviceId);
+            stmt.setObject(5, sessionId);
             return stmt.executeUpdate() == 1;
         } catch (SQLException e) { throw new IllegalStateException("Collection assignment failed", e); }
     }
@@ -70,9 +72,11 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
     }
 
     @Override public Attempt beginSelectedAttempt(UUID sessionId, UUID deviceId, UUID studentId,
-                                                  String locale, String lessonId, String releaseId,
+                                                  String collectionId, String locale, String lessonId, String releaseId,
                                                   Instant now) {
         DeviceLearningSelectionPolicy.requireLocale(locale);
+        if (collectionId == null || !collectionId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}"))
+            throw new IllegalArgumentException("Invalid collection");
         UUID attemptId = UUID.randomUUID();
         try (var db = connection();
              var stmt = db.prepareStatement(
@@ -83,7 +87,7 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
                 "FROM education.classroom_session s " +
                 "JOIN education.student_profile p ON p.classroom_id=s.classroom_id " +
                 "WHERE s.session_id=? AND s.device_id=? AND s.active=true " +
-                "AND s.collection_id IS NOT NULL " +
+                "AND s.collection_id=? " +
                 "AND p.student_id=? AND p.active=true AND p.student_number IS NOT NULL " +
                 "AND ? >= s.begins_at AND ? < s.ends_at")) {
             stmt.setObject(1, attemptId);
@@ -94,9 +98,10 @@ public final class PostgresLearnerJourneyRepository implements NumberLanguageLes
             stmt.setString(6, releaseId);
             stmt.setObject(7, sessionId);
             stmt.setObject(8, deviceId);
-            stmt.setObject(9, studentId);
-            stmt.setTimestamp(10, Timestamp.from(now));
+            stmt.setObject(9, collectionId);
+            stmt.setObject(10, studentId);
             stmt.setTimestamp(11, Timestamp.from(now));
+            stmt.setTimestamp(12, Timestamp.from(now));
             if (stmt.executeUpdate() != 1)
                 throw new SecurityException("Session or student not authorized for lesson");
             return new Attempt(attemptId, sessionId, studentId, deviceId,
