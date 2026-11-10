@@ -94,6 +94,57 @@ class PostgresLicenseStoreIntegrationTest {
         } finally {
             executor.shutdownNow();
         }
+        // License boundary: exactly expiresAt is NOT valid; one nanosecond
+        // before it is valid. No global clock assumptions in PostgreSQL.
+        assertTrue(store.entitlements(org.id(), NOW.plus(Duration.ofDays(180))
+                        .minusNanos(1)).active());
+        assertFalse(store.entitlements(org.id(), NOW.plus(Duration.ofDays(365))).active());
+        // Suspended organizations cannot use otherwise valid commercial rights.
+        try (var db = DriverManager.getConnection(url, user, password);
+             var stmt = db.prepareStatement(
+                "UPDATE platform.organization_account SET status='SUSPENDED' WHERE organization_id=?")) {
+            stmt.setObject(1, org.id());
+            assertEquals(1, stmt.executeUpdate());
+        }
+        assertFalse(store.entitlements(org.id(), NOW.plus(Duration.ofDays(1))).active());
+        try (var db = DriverManager.getConnection(url, user, password);
+             var stmt = db.prepareStatement(
+                "UPDATE platform.organization_account SET status='ACTIVE' WHERE organization_id=?")) {
+            stmt.setObject(1, org.id());
+            assertEquals(1, stmt.executeUpdate());
+        }
+        assertTrue(store.entitlements(org.id(), NOW.plus(Duration.ofDays(1))).active());
+
+        // Two simultaneous signups from the same verified owner must never
+        // generate two organizations or restart the 30-day trial.
+        var signupExecutor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var sameOwner = "trial-race-" + java.util.UUID.randomUUID();
+        try {
+            var latch = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<java.util.UUID> signup = () -> {
+                latch.await();
+                return store.createTrial(sameOwner, "race@school.example", "Race School",
+                        NOW, NOW.plus(Duration.ofDays(30)), 2, Set.of("DEMO")).id();
+            };
+            var s1 = signupExecutor.submit(signup);
+            var s2 = signupExecutor.submit(signup);
+            latch.countDown();
+            var createdId = s1.get();
+            assertEquals(createdId, s2.get());
+            try (var db = DriverManager.getConnection(url, user, password);
+                 var stmt = db.prepareStatement(
+                    "SELECT count(*) FROM platform.organization_license " +
+                    "WHERE organization_id=? AND kind='TRIAL'")) {
+                stmt.setObject(1, createdId);
+                try (var rows = stmt.executeQuery()) {
+                    assertTrue(rows.next());
+                    assertEquals(1, rows.getLong(1));
+                }
+            }
+        } finally {
+            signupExecutor.shutdownNow();
+        }
+
         var future = new OrganizationLicensingService(store, subject -> false,
                 collections -> false, Clock.fixed(NOW.plus(Duration.ofDays(366)), ZoneOffset.UTC));
         assertFalse(future.myEntitlements("oidc-subject-1").active());
