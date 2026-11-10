@@ -118,7 +118,13 @@ public final class VRContentManager {
                 paths.put(artifact.name(), downloader.download(url, part, artifact.sizeBytes()));
             }
             // Verify all downloaded files BEFORE granting the installer access.
-            SignedReleaseVerifier.verifyArtifacts(release, paths);
+            try {
+                SignedReleaseVerifier.verifyArtifacts(release, paths);
+            } catch (GeneralSecurityException corrupted) {
+                try { cleanupDownloads(partialRoot); }
+                catch (IOException cleanupFailure) { corrupted.addSuppressed(cleanupFailure); }
+                throw corrupted;
+            }
             Path installed = installer.install(release, signature, paths);
 
             List<LocalReleaseRegistry.Entry> after = new ArrayList<>(existing);
