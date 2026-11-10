@@ -22,6 +22,9 @@ class PostgresLicenseStoreIntegrationTest {
         String user = System.getenv("VRTA_TEST_PG_USER");
         String password = System.getenv("VRTA_TEST_PG_PASSWORD");
         String sql = Files.readString(Path.of("db/migrations/R4__organization_trial_manual_licensing.sql"))
+                .replace("CREATE TABLE platform.", "CREATE TABLE IF NOT EXISTS platform.")
+                .replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ")
+                .replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ")
                 .lines().map(line -> line.stripLeading().startsWith("--") ? "" : line)
                 .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
         try (var db = DriverManager.getConnection(url, user, password);
