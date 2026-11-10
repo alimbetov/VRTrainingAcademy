@@ -83,7 +83,6 @@ public final class ClassroomSessionService {
                 .orElseThrow(() -> new SecurityException("Unknown attempt"));
         Session session = authorizedSession(tenantId, authenticatedDeviceId, attempt.sessionId());
         if (!attempt.deviceId().equals(authenticatedDeviceId)
-                || !attempt.studentId().equals(attempt.studentId())
                 || !attempt.lessonRevision().equals(session.lessonRevision()))
             throw new SecurityException("Attempt scope mismatch");
         if (event.occurredAt() == null || event.occurredAt().isBefore(attempt.startedAt())
