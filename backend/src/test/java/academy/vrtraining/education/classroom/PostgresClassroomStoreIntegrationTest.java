@@ -74,6 +74,15 @@ class PostgresClassroomStoreIntegrationTest {
         assertThrows(IllegalStateException.class,
                 () -> store.createStudent(classroom.id(), "АЙША"));
         assertEquals(1, store.students(classroom.id()).size());
+        var numbered = store.assignNumber(classroom.id(), 247);
+        assertEquals(247, numbered.number());
+        assertEquals(2, store.students(classroom.id()).size());
+        assertTrue(store.students(classroom.id()).stream()
+                .anyMatch(s -> s.id().equals(numbered.id()) && s.nickname().equals("247")));
+        assertThrows(IllegalStateException.class, () -> store.assignNumber(classroom.id(), 247));
+        assertThrows(IllegalArgumentException.class, () -> store.assignNumber(classroom.id(), 99));
+        var secondClass = store.createClassroom("school-1", "7Б", "teacher-1");
+        assertEquals(247, store.assignNumber(secondClass.id(), 247).number());
 
         UUID device = UUID.randomUUID();
         Instant from = Instant.parse("2026-11-10T12:00:00Z");
