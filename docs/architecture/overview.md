@@ -1,4 +1,4 @@
-# VRTrainingAcademy — architecture R0
+# VRTrainingAcademy — domain architecture (read with unified R0–R3 baseline)
 
 ## Product boundaries
 
@@ -25,12 +25,19 @@ flowchart LR
 2. Education: Curriculum, Subject, LearningObjective, Lesson, Classroom, Assignment, Assessment, LearningAttempt.
 3. Unreal: installed releases registry and checksummed local cache, display and user interaction. Does not grant its own permissions.
 
-## R0 / R1 contract
+## Canonical integrated baseline
 
-- R0: anonymous `GET /api/v1/public/catalog?locale=ru-RU` returns 3 free lessons from School/Astronomy, School/Physics, Professional/Safety. Read-only sample metadata; no download entitlement implied.
-- R1: scoped authenticated catalog, distinct guest grants, platform-specific releases, RustFS pre-signed URLs, validation and verified offline reopen.
-- R2: teacher workspace with scoped assignments, persistent PostgreSQL and Liquibase.
-- R3: proof on **packaged Windows then physical Quest** of download → cryptographic verification → cook-compatible mount → launch → restart → offline reopen.
+The earlier phase numbering in this architecture predates the executable R1
+download manager, R2 delivery transport and R3 classroom/domain services.
+Do **not** use the historical phase list as release status. The authoritative
+implementation map and blockers are in
+[Unified Platform R0–R3](unified-platform-r0-r3.md).
+
+- R0: public demo taxonomy and browse-only metadata (no entitlement).
+- R1: signed, verified **JVM on-device reference** delivery/install/cache.
+- R2: Spring Backend Download Grant and RustFS direct/proxy transport.
+- R3: teacher/Quest activation contracts, numeric learner classroom sessions,
+  locale + lesson selection, daily statistics and 30-day retention policy.
 
 ## Non-negotiable constraints
 
