@@ -38,6 +38,7 @@ public class DeviceActivationController {
     public record Begin(@NotBlank String publicKeySpkiBase64) {}
     public record Approve(@NotNull UUID flowId, @NotBlank String userCode) {}
     public record Complete(@NotBlank String signatureBase64) {}
+    public record CompletedDevice(UUID deviceId, String organizationId, String state) {}
 
     @PostMapping("/api/v1/device-activations")
     @ResponseStatus(HttpStatus.CREATED)
@@ -63,12 +64,13 @@ public class DeviceActivationController {
     }
 
     @PostMapping("/api/v1/device-activations/{flowId}/complete")
-    public DeviceActivationService.Device complete(@PathVariable UUID flowId,
+    public CompletedDevice complete(@PathVariable UUID flowId,
             @Valid @RequestBody Complete request) throws GeneralSecurityException {
         byte[] proof = decodeBounded(request.signatureBase64(), 64);
         if (proof.length != 64)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid device proof");
-        return service.complete(flowId, proof);
+        var device = service.complete(flowId, proof);
+        return new CompletedDevice(device.deviceId(), device.tenantId(), device.state().name());
     }
 
     private static byte[] decodeBounded(String base64, int maxBytes) {
