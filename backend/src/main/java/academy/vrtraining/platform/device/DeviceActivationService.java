@@ -23,7 +23,7 @@ import java.util.UUID;
  * Complete requires proof of possession of the device's private key.
  */
 public final class DeviceActivationService {
-    public enum State { PENDING, APPROVED, ACTIVE, REVOKED }
+    public enum State { PENDING, APPROVED, ACTIVE, REVOKED, EXPIRED }
 
     public record Activation(UUID flowId, String userCode, byte[] challenge, Instant expiresAt) {}
     public record Device(UUID deviceId, String tenantId, PublicKey publicKey, State state) {}
