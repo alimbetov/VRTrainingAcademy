@@ -34,6 +34,9 @@ public final class VRContentManager {
     private final AtomicReleaseInstaller installer;
     private final long freeSpaceReserveBytes;
     private final int maxSlots;
+    private final PublicKey pinnedKey;
+    private final String platform;
+    private final String runtime;
 
     public VRContentManager(Path localRoot, URI rustfsBaseUrl,
                             boolean allowHttpForLocalTests, PublicKey pinnedPublicKey,
@@ -60,10 +63,14 @@ public final class VRContentManager {
      * Do not send URLs from a public catalog; they must come from scoped grants.
      */
     public Path downloadAndInstall(SignedReleaseVerifier.Release release,
-                                   byte[] signature, Map<String, URI> grantedArtifactUrls)
+                                   byte[] signature, Map<String, URI> grantedArtifactUrls,
+                                   Set<String> mountedOrActiveReleaseIds)
             throws IOException, GeneralSecurityException, InterruptedException {
         Objects.requireNonNull(release);
         Objects.requireNonNull(grantedArtifactUrls);
+        Objects.requireNonNull(mountedOrActiveReleaseIds);
+        SignedReleaseVerifier.verifySignature(release, signature, pinnedKey);
+        SignedReleaseVerifier.verifyCompatibility(release, platform, runtime);
         Set<String> expected = release.artifacts().stream()
                 .map(SignedReleaseVerifier.Artifact::name)
                 .collect(java.util.stream.Collectors.toSet());
@@ -80,10 +87,11 @@ public final class VRContentManager {
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
              FileLock ignored = lockChannel.lock()) {
             var existing = registry.read();
-            checkInventoryConsistency(existing);
+            checkInventoryConsistency(existing, release.releaseId());
             var candidateState = existing.stream().map(e ->
                     new LocalContentRetentionPolicy.InstalledContent(e.releaseId(), e.bytes(),
-                            e.lastOpenedAt(), false, e.pinned(), false,
+                            e.lastOpenedAt(), mountedOrActiveReleaseIds.contains(e.releaseId()),
+                            e.pinned(), false,
                             e.protectedFromEviction())).toList();
             var decision = LocalContentRetentionPolicy.decide(candidateState,
                     release.releaseId(), maxSlots);
@@ -107,8 +115,6 @@ public final class VRContentManager {
                 paths.put(artifact.name(), downloader.download(url, part, artifact.sizeBytes()));
             }
             // Verify all downloaded files BEFORE granting the installer access.
-            SignedReleaseVerifier.verifySignature(release, signature, getTrustedKey());
-            SignedReleaseVerifier.verifyCompatibility(release, expectedPlatform(), expectedRuntime());
             SignedReleaseVerifier.verifyArtifacts(release, paths);
             Path installed = installer.install(release, signature, paths);
 
@@ -131,14 +137,6 @@ public final class VRContentManager {
         }
     }
 
-    // Pinned values must be trusted through the same verifier as the installer.
-    // Refactoring this into a native runtime is a separate acceptance gate.
-    private PublicKey getTrustedKey() { return pinnedKey; }
-    private String expectedPlatform() { return platform; }
-    private String expectedRuntime() { return runtime; }
-    private PublicKey pinnedKey;
-    private String platform;
-    private String runtime;
 
     /**
      * Reconciles only missing inventory paths; unknown directories are never
@@ -163,11 +161,49 @@ public final class VRContentManager {
         return registry.read();
     }
 
-    private void checkInventoryConsistency(List<LocalReleaseRegistry.Entry> entries) throws IOException {
+    private void checkInventoryConsistency(List<LocalReleaseRegistry.Entry> entries,
+                                           String requestedReleaseId) throws IOException {
+        var tracked = new java.util.HashSet<String>();
         for (var entry : entries) {
+            tracked.add(entry.releaseId());
             Path path = installs.resolve(entry.releaseId());
             if (!Files.isDirectory(path) || Files.isSymbolicLink(path))
                 throw new IOException("Inventory reconciliation required");
+        }
+        try (var stream = Files.list(installs)) {
+            for (Path candidate : stream.toList()) {
+                String name = candidate.getFileName().toString();
+                if (!tracked.contains(name) && !name.equals(requestedReleaseId))
+                    throw new IOException("Untracked installed content; reconciliation required");
+            }
+        }
+    }
+
+    /** Record access for LRU only after the runtime reports successful opening. */
+    public void markOpened(String releaseId) throws IOException {
+        mutateEntry(releaseId, null);
+    }
+
+    /** User/teacher pinning policy must be authorized by the hosting application. */
+    public void setPinned(String releaseId, boolean pinned) throws IOException {
+        mutateEntry(releaseId, pinned);
+    }
+
+    private void mutateEntry(String releaseId, Boolean pinned) throws IOException {
+        Files.createDirectories(root);
+        try (var channel = FileChannel.open(root.resolve(".manager.lock"),
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+             var ignored = channel.lock()) {
+            var entries = new ArrayList<>(registry.read());
+            int index = -1;
+            for (int i = 0; i < entries.size(); i++)
+                if (entries.get(i).releaseId().equals(releaseId)) { index = i; break; }
+            if (index < 0) throw new IOException("Unknown installed release");
+            var old = entries.get(index);
+            entries.set(index, new LocalReleaseRegistry.Entry(old.releaseId(), old.bytes(),
+                    pinned == null ? Instant.now() : old.lastOpenedAt(),
+                    pinned == null ? old.pinned() : pinned, old.protectedFromEviction()));
+            registry.write(entries);
         }
     }
 
