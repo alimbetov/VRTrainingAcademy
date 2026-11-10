@@ -45,7 +45,8 @@ public class BackendArtifactProxyController {
             @AuthenticationPrincipal Jwt jwt, @PathVariable String contentId,
             @PathVariable String artifactName, @RequestParam String platform,
             @RequestParam String runtimeBuildId,
-            @RequestHeader(value = HttpHeaders.RANGE, required = false) String range) {
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String range,
+            @RequestHeader(value = HttpHeaders.IF_RANGE, required = false) String ifRange) {
         if (transport != DownloadGrantService.Transport.BACKEND_PROXY)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         if (jwt == null || jwt.getSubject() == null || !jwt.hasClaim("tenant_id"))
@@ -59,29 +60,21 @@ public class BackendArtifactProxyController {
         if (client == null)
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "RustFS unavailable");
 
-        long size = artifact.sizeBytes();
-        long start = 0, end = size - 1;
-        if (range != null) {
-            if (!range.matches("bytes=[0-9]+-[0-9]*"))
-                throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
-            String[] parts = range.substring(6).split("-", -1);
-            try {
-                start = Long.parseLong(parts[0]);
-                if (!parts[1].isBlank()) end = Long.parseLong(parts[1]);
-            } catch (NumberFormatException e) {
-                throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
-            }
-            if (start >= size || end < start || end >= size)
-                throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        ArtifactHttpRange.Selection selection;
+        try {
+            selection = ArtifactHttpRange.select(artifact.sizeBytes(), artifact.sha256Hex(),
+                    range, ifRange);
+        } catch (ArtifactHttpRange.InvalidRangeException e) {
+            var headers = new HttpHeaders();
+            headers.set(HttpHeaders.CONTENT_RANGE, "bytes */" + e.total());
+            return new ResponseEntity<>(null, headers, HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
         }
-        if (size <= 0)
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Empty artifact not proxyable");
-        long from = start, to = end;
-        String s3Range = "bytes=" + from + "-" + to;
+        long from = selection.from(), to = selection.to();
+        String s3Range = selection.s3Range();
         StreamingResponseBody body = output -> {
             GetObjectRequest.Builder builder = GetObjectRequest.builder()
                     .bucket(release.bucket()).key(artifact.objectKey());
-            if (range != null) builder.range(s3Range);
+            if (selection.partial()) builder.range(s3Range);
             try (InputStream stream = client.getObject(builder.build())) {
                 byte[] buffer = new byte[64 * 1024];
                 long remaining = to - from + 1;
@@ -98,10 +91,10 @@ public class BackendArtifactProxyController {
         headers.setCacheControl("no-store");
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
         headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
-        headers.setContentLength(to - from + 1);
-        if (range != null) headers.set(HttpHeaders.CONTENT_RANGE,
-                "bytes " + from + "-" + to + "/" + size);
+        headers.setETag(selection.etag());
+        headers.setContentLength(selection.length());
+        if (selection.partial()) headers.set(HttpHeaders.CONTENT_RANGE, selection.contentRange());
         return new ResponseEntity<>(body, headers,
-                range == null ? HttpStatus.OK : HttpStatus.PARTIAL_CONTENT);
+                selection.partial() ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK);
     }
 }
