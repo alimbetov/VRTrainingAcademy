@@ -32,6 +32,7 @@ vr:
     jdbc-password: ${VR_DEVICE_JDBC_PASSWORD:}
     activation-pepper-b64: ${VR_DEVICE_ACTIVATION_PEPPER_B64:}
   licensing:
+    download-authorization-enabled: ${VR_LICENSING_DOWNLOAD_AUTHORIZATION_ENABLED:false}
     persistence-enabled: ${VR_LICENSING_PERSISTENCE_ENABLED:false}
     jdbc-url: ${VR_LICENSING_JDBC_URL:}
     jdbc-user: ${VR_LICENSING_JDBC_USER:}
