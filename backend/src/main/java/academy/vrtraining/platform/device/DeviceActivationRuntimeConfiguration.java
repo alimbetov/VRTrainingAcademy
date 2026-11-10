@@ -2,6 +2,9 @@ package academy.vrtraining.platform.device;
 
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.util.UUID;
+import academy.vrtraining.platform.licensing.LicenseStore;
+import org.springframework.beans.factory.ObjectProvider;
 import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -26,10 +29,26 @@ public class DeviceActivationRuntimeConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(DeviceActivationService.AdministratorAuthorization.class)
-    DeviceActivationService.AdministratorAuthorization denyDeviceAdministration() {
+    DeviceActivationService.AdministratorAuthorization organizationOwnerActivationAuthority(
+            ObjectProvider<LicenseStore> licenseStore) {
         return new DeviceActivationService.AdministratorAuthorization() {
-            @Override public boolean mayActivateDevice(String subject, String tenant) { return false; }
-            @Override public boolean mayRevokeDevice(String subject, String tenant) { return false; }
+            private LicenseStore store() { return licenseStore.getIfAvailable(); }
+            private UUID ownerOrganization(String subject, String tenant) {
+                if (subject == null || tenant == null || store() == null) return null;
+                try {
+                    UUID orgId = UUID.fromString(tenant);
+                    return store().organization(orgId)
+                            .filter(o -> subject.equals(o.ownerSubject()))
+                            .map(o -> o.id()).orElse(null);
+                } catch (IllegalArgumentException e) { return null; }
+            }
+            @Override public boolean mayActivateDevice(String subject, String tenant) {
+                UUID orgId = ownerOrganization(subject, tenant);
+                return orgId != null && store().entitlements(orgId, Clock.systemUTC().instant()).active();
+            }
+            @Override public boolean mayRevokeDevice(String subject, String tenant) {
+                return ownerOrganization(subject, tenant) != null;
+            }
         };
     }
 
