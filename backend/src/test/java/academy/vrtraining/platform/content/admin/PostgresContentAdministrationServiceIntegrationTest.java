@@ -132,6 +132,32 @@ class PostgresContentAdministrationServiceIntegrationTest {
                 "Failed attempts must not add audit entries");
     }
 
+    @Test void additionalPlacementCannotCrossAdminWorldScope() throws Exception {
+        migrate();
+        String suffix=UUID.randomUUID().toString().substring(0,8);
+        String root="root-placement-"+suffix, admin="admin-placement-"+suffix;
+        grant(root,"PLATFORM_ADMIN",null,null);
+        var svc=service();
+        var worldA=svc.createWorld(root,"WORLD_PA_"+suffix,1);
+        var worldB=svc.createWorld(root,"WORLD_PB_"+suffix,1);
+        grant(admin,"CONTENT_ADMIN",worldA.id(),null);
+        var areaA=svc.createArea(admin,worldA.id(),"AREA_PA_"+suffix,1);
+        var subjectA=svc.createSubject(admin,areaA.id(),"SUBJECT_PA_"+suffix,1);
+        var subjectA2=svc.createSubject(admin,areaA.id(),"SUBJECT_PA2_"+suffix,2);
+        var areaB=svc.createArea(root,worldB.id(),"AREA_PB_"+suffix,1);
+        var subjectB=svc.createSubject(root,areaB.id(),"SUBJECT_PB_"+suffix,1);
+        var lesson=svc.createLesson(admin,subjectA.id(),"LESSON_PA_"+suffix,1);
+        var placement=svc.addPlacement(admin,lesson.id(),subjectA2.id(),2);
+        assertEquals("DRAFT",placement.state());
+        assertEquals(1,svc.lessons(admin,subjectA2.id()).size());
+        assertThrows(SecurityException.class,
+                ()->svc.addPlacement(admin,lesson.id(),subjectB.id(),3));
+        assertThrows(PostgresContentAdministrationService.Conflict.class,
+                ()->svc.addPlacement(admin,lesson.id(),subjectA2.id(),4));
+        assertEquals(1,svc.lessons(admin,subjectA2.id()).size());
+        assertEquals(2,auditCount(lesson.id()));
+    }
+
     @Test void areaCannotPublishBeforeWorldAndPublishedChildrenBlockArchive() throws Exception {
         migrate();
         String suffix=UUID.randomUUID().toString().substring(0,8);
