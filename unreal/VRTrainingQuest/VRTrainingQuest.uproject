@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.6",
+  "Category": "Education",
+  "Description": "VRTrainingAcademy Quest native runtime foundation. No production dynamic-content claim.",
+  "Modules": [
+    {"Name":"VRTrainingQuest","Type":"Runtime","LoadingPhase":"Default"}
+  ],
+  "Plugins": [
+    {"Name":"OpenXR","Enabled":true},
+    {"Name":"ChunkDownloader","Enabled":true}
+  ]
+}
