@@ -97,6 +97,7 @@ public final class LessonUploadSessions {
                 }
                 authorized(db,subject,world);
                 UUID uploadId=UUID.randomUUID();
+                int inserted;
                 try(var s=db.prepareStatement(
                     "INSERT INTO content.lesson_upload_session "
                     +"(upload_id,lesson_id,subject_id,world_id,created_by_subject,idempotency_key) "
@@ -104,7 +105,7 @@ public final class LessonUploadSessions {
                     +"DO NOTHING")){
                     s.setObject(1,uploadId);s.setObject(2,lessonId);s.setObject(3,selectedSubjectId);
                     s.setObject(4,world);s.setString(5,subject);s.setString(6,idempotencyKey);
-                    s.executeUpdate();
+                    inserted=s.executeUpdate();
                 }
                 try(var s=db.prepareStatement(
                     "SELECT upload_id,subject_id,state FROM content.lesson_upload_session "
@@ -117,7 +118,7 @@ public final class LessonUploadSessions {
                             throw new Conflict("Idempotency-Key is already bound to a different Subject");
                         uploadId=(UUID)rows.getObject(1);
                         String state=rows.getString(3);
-                        if("CREATED".equals(state))audit(db,subject,uploadId,"UPLOAD_CREATED","CREATED");
+                        if(inserted==1)audit(db,subject,uploadId,"UPLOAD_CREATED","CREATED");
                         db.commit();
                         return new Session(uploadId,lessonId,selected,state);
                     }
@@ -165,6 +166,16 @@ public final class LessonUploadSessions {
                 if(!"CREATED".equals(item.state()))
                     throw new Conflict("Upload must be CREATED, not "+item.state());
                 lessonId=item.lessonId();
+                try(var check=db.prepareStatement("SELECT 1 FROM content.catalog_lesson l "
+                      +"JOIN content.lesson_placement p ON p.lesson_id=l.lesson_id "
+                      +"WHERE l.lesson_id=? AND l.state='DRAFT' AND p.subject_id=? AND p.world_id=?")){
+                    check.setObject(1,item.lessonId());
+                    check.setObject(2,item.subjectId());
+                    check.setObject(3,item.worldId());
+                    try(var rows=check.executeQuery()){
+                        if(!rows.next())throw new Conflict("Lesson placement no longer DRAFT");
+                    }
+                }
                 try(var s=db.prepareStatement("UPDATE content.lesson_upload_session "
                          +"SET state='UPLOADING',updated_at=now() WHERE upload_id=?")){
                     s.setObject(1,id);s.executeUpdate();
