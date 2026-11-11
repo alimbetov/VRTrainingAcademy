@@ -125,6 +125,123 @@ public final class PostgresContentAdministrationService {
         }
     }
 
+    public record NodeView(UUID id, UUID parentId, String code, String state,
+                           int sortOrder, long version) {}
+    public record LessonView(UUID id, String code, String state, int sortOrder,
+                             long version) {}
+
+    /** Return only worlds for which trusted membership provides access. */
+    public List<NodeView> worlds(String subject) {
+        actor(subject);
+        return transact(db -> {
+            var result = new java.util.ArrayList<NodeView>();
+            try (var stmt = db.prepareStatement(
+                    "SELECT w.world_id,w.code,w.status,w.sort_order,w.version "
+                    + "FROM content.catalog_world w WHERE EXISTS "
+                    + "(SELECT 1 FROM content.admin_membership m WHERE m.subject=? "
+                    + "AND m.active=true AND m.organization_id IS NULL AND "
+                    + "((m.role='PLATFORM_ADMIN' AND m.scope_world_id IS NULL) OR "
+                    + "(m.role IN ('CONTENT_ADMIN','CONTENT_AUTHOR') AND m.scope_world_id=w.world_id))) "
+                    + "ORDER BY w.sort_order,w.code")) {
+                stmt.setString(1,subject);
+                try (var rows=stmt.executeQuery()) {
+                    while (rows.next()) result.add(new NodeView((UUID)rows.getObject(1),
+                            null,rows.getString(2),rows.getString(3),rows.getInt(4),rows.getLong(5)));
+                }
+            }
+            return List.copyOf(result);
+        });
+    }
+
+    public List<NodeView> areas(String subject, UUID worldId) {
+        return nodesForParent(subject, "AREA", Objects.requireNonNull(worldId));
+    }
+
+    public List<NodeView> subjects(String subject, UUID areaId) {
+        return nodesForParent(subject, "SUBJECT", Objects.requireNonNull(areaId));
+    }
+
+    private List<NodeView> nodesForParent(String subject, String kind, UUID parentId) {
+        actor(subject);
+        return transact(db -> {
+            UUID worldId = "AREA".equals(kind) ? parentId : parentWorld(db,parentId);
+            authorized(db,subject,worldId,true);
+            String sql = "AREA".equals(kind)
+                    ? "SELECT area_id,code,status,sort_order,version FROM content.catalog_area "
+                        + "WHERE world_id=? ORDER BY sort_order,code"
+                    : "SELECT subject_id,code,status,sort_order,version FROM content.catalog_subject "
+                        + "WHERE area_id=? ORDER BY sort_order,code";
+            var result = new java.util.ArrayList<NodeView>();
+            try (var s=db.prepareStatement(sql)) {
+                s.setObject(1,parentId);
+                try (var rows=s.executeQuery()) {
+                    while(rows.next()) result.add(new NodeView((UUID)rows.getObject(1),parentId,
+                            rows.getString(2),rows.getString(3),rows.getInt(4),rows.getLong(5)));
+                }
+            }
+            return List.copyOf(result);
+        });
+    }
+
+    public List<LessonView> lessons(String subject, UUID subjectId) {
+        actor(subject);
+        return transact(db -> {
+            authorized(db,subject,worldForSubject(db,subjectId),true);
+            var result=new java.util.ArrayList<LessonView>();
+            try (var s=db.prepareStatement("SELECT l.lesson_id,l.code,l.state,p.sort_order,l.version "
+                    + "FROM content.lesson_placement p JOIN content.catalog_lesson l "
+                    + "ON l.lesson_id=p.lesson_id WHERE p.subject_id=? "
+                    + "ORDER BY p.sort_order,l.code")) {
+                s.setObject(1,subjectId);
+                try (var rows=s.executeQuery()) {
+                    while(rows.next()) result.add(new LessonView((UUID)rows.getObject(1),
+                            rows.getString(2),rows.getString(3),rows.getInt(4),rows.getLong(5)));
+                }
+            }
+            return List.copyOf(result);
+        });
+    }
+
+    /** Optimistic and audited reordering without permitting reparenting. */
+    public Change reorder(String subject, String kind, UUID id, int sortOrder,
+                          long expectedVersion) {
+        actor(subject);
+        if (!List.of("WORLD","AREA","SUBJECT","LESSON").contains(kind))
+            throw new IllegalArgumentException("Unknown node kind");
+        if (expectedVersion < 0) throw new IllegalArgumentException("Invalid version");
+        return transact(db -> {
+            authorized(db,subject,worldForNode(db,kind,id),false);
+            if ("LESSON".equals(kind)) throw new Conflict(
+                    "Reorder lesson through a scoped placement, not global lesson");
+            String table=switch(kind) {
+                case "WORLD" -> "catalog_world";
+                case "AREA" -> "catalog_area";
+                case "SUBJECT" -> "catalog_subject";
+                default -> throw new IllegalArgumentException("Invalid kind");
+            };
+            String column=kind.toLowerCase(java.util.Locale.ROOT)+"_id";
+            String beforeState;
+            try (var s=db.prepareStatement("SELECT status FROM content."+table
+                    +" WHERE "+column+"=? FOR UPDATE")) {
+                s.setObject(1,id);
+                try(var rows=s.executeQuery()) {
+                    if(!rows.next()) throw new Conflict("Missing node");
+                    beforeState=rows.getString(1);
+                }
+            }
+            try(var s=db.prepareStatement("UPDATE content."+table
+                    +" SET sort_order=?,version=version+1 WHERE "+column+"=? AND version=?")) {
+                s.setInt(1,sortOrder);
+                s.setObject(2,id);
+                s.setLong(3,expectedVersion);
+                if(s.executeUpdate()!=1) throw new Conflict("Stale catalog version");
+            }
+            audit(db,subject,"REORDER",kind,id,beforeState,
+                    beforeState+" sortOrder="+sortOrder);
+            return new Change(id,beforeState,expectedVersion+1);
+        });
+    }
+
     public Created createWorld(String subject, String worldCode, int sortOrder) {
         actor(subject);
         code(worldCode);
