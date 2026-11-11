@@ -48,6 +48,15 @@ class SignedQuestReleaseV2CrossContractTest(unittest.TestCase):
         self.assertEqual(237, len(encoded))
         self.assertEqual(EXPECTED_SHA256, hashlib.sha256(encoded).hexdigest())
 
+    def test_unreal_runtime_version_and_engine_match_authoring_descriptor(self):
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        cpp = (ROOT / "VRTrainingQuest" / "Source" / "VRTrainingQuest" /
+               "Private" / "VRTAQuestGameInstance.cpp").read_text(encoding="utf-8")
+        project = json.loads((ROOT / "VRTrainingQuest" / "VRTrainingQuest.uproject")
+                             .read_text(encoding="utf-8"))
+        self.assertIn('return TEXT("' + data["runtimeBuildId"] + '");', cpp)
+        self.assertEqual(data["engineVersion"], project["EngineAssociation"])
+
     def test_changing_level_runtime_or_hash_changes_canonical_digest(self):
         data = json.loads(FIXTURE.read_text(encoding="utf-8"))
         original = hashlib.sha256(canonical_v2(data)).digest()
