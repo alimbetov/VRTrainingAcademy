@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS content.lesson_upload_session (
       OR (state='STAGED' AND object_key IS NOT NULL AND artifact_sha256 ~ '^[0-9a-f]{64}$'
            AND artifact_size_bytes>0)),
   CONSTRAINT ck_content_upload_name CHECK (artifact_name IS NULL OR
-      (artifact_name ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\\.pak$'
+      (artifact_name ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}[.]pak$'
        AND position('..' in artifact_name)=0))
 );
 CREATE INDEX IF NOT EXISTS idx_content_upload_lesson
