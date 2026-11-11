@@ -29,6 +29,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Check native smoke scripts syntax
+        run: |
+          bash -n unreal/scripts/quest-native-compile-smoke.sh
+          bash -n unreal/scripts/quest-android-package-smoke.sh
       - name: Assert native source and package fixture contracts
         run: python3 -m unittest discover -s unreal/tests -p 'test_*.py' -v
       - name: Static validation summary
