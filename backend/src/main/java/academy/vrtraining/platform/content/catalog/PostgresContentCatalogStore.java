@@ -25,6 +25,64 @@ public final class PostgresContentCatalogStore implements ContentCatalogStore {
         this.password = Objects.requireNonNull(password);
     }
 
+    @Override public void upsertTranslation(NodeKind kind, UUID nodeId, String locale,
+                                             String title, String description) {
+        Objects.requireNonNull(nodeId, "nodeId");
+        if (locale == null || !List.of("kk-KZ", "ru-RU", "en-US").contains(locale))
+            throw new IllegalArgumentException("Unsupported locale");
+        if (title == null || title.isBlank() || title.length() > 160
+                || (description != null && description.length() > 2000))
+            throw new IllegalArgumentException("Invalid translation");
+        String table = translationTable(kind);
+        String column = translationColumn(kind);
+        try (var db = DriverManager.getConnection(jdbcUrl, user, password);
+             var stmt = db.prepareStatement("INSERT INTO content." + table
+                     + "(" + column + ",locale,title,description) VALUES (?,?,?,?)"
+                     + " ON CONFLICT (" + column + ",locale) DO UPDATE SET"
+                     + " title=EXCLUDED.title,description=EXCLUDED.description")) {
+            stmt.setObject(1, nodeId);
+            stmt.setString(2, locale);
+            stmt.setString(3, title.strip());
+            stmt.setString(4, description);
+            stmt.executeUpdate();
+        } catch (SQLException ex) { throw conflictOrFailure("Translation upsert failed", ex); }
+    }
+
+    @Override public List<Translation> translations(NodeKind kind, UUID nodeId) {
+        Objects.requireNonNull(nodeId, "nodeId");
+        String table = translationTable(kind);
+        String column = translationColumn(kind);
+        var results = new ArrayList<Translation>();
+        try (var db = DriverManager.getConnection(jdbcUrl, user, password);
+             var stmt = db.prepareStatement("SELECT locale,title,description FROM content."
+                     + table + " WHERE " + column + "=? ORDER BY locale")) {
+            stmt.setObject(1, nodeId);
+            try (var rs = stmt.executeQuery()) {
+                while (rs.next()) results.add(new Translation(
+                        rs.getString(1), rs.getString(2), rs.getString(3)));
+            }
+        } catch (SQLException ex) { throw new IllegalStateException("Translation lookup failed", ex); }
+        return List.copyOf(results);
+    }
+
+    private static String translationTable(NodeKind kind) {
+        return switch (Objects.requireNonNull(kind)) {
+            case WORLD -> "world_translation";
+            case AREA -> "area_translation";
+            case SUBJECT -> "subject_translation";
+            case LESSON -> "lesson_translation";
+        };
+    }
+
+    private static String translationColumn(NodeKind kind) {
+        return switch (Objects.requireNonNull(kind)) {
+            case WORLD -> "world_id";
+            case AREA -> "area_id";
+            case SUBJECT -> "subject_id";
+            case LESSON -> "lesson_id";
+        };
+    }
+
     @Override public Node createWorld(String code, int sortOrder) {
         requireCode(code);
         UUID id = UUID.randomUUID();
