@@ -1,0 +1,56 @@
+name: Quest Runtime smoke qualification
+
+on:
+  push:
+    branches:
+      - 'feat/**'
+      - 'integration/**'
+      - main
+    paths:
+      - 'unreal/**'
+      - '.github/workflows/quest-runtime-smoke.yml'
+  pull_request:
+    paths:
+      - 'unreal/**'
+      - '.github/workflows/quest-runtime-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quest-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-smoke:
+    name: Contract smoke (Python, no Unreal compilation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert native source and package fixture contracts
+        run: python3 -m unittest discover -s unreal/tests -p 'test_*.py' -v
+      - name: Static validation summary
+        run: |
+          echo "### Quest Runtime contract smoke" >> "$GITHUB_STEP_SUMMARY"
+          echo "PASS: Python fixtures and source guardrails." >> "$GITHUB_STEP_SUMMARY"
+          echo "NOT TESTED: Unreal C++, Android APK, mounting, real Quest and offline reopen." >> "$GITHUB_STEP_SUMMARY"
+
+  native-compile-smoke:
+    name: Native Unreal C++ smoke (requires self-hosted UE Mac)
+    if: ${{ vars.VRTA_UNREAL_NATIVE_CI == 'true' }}
+    runs-on: [self-hosted, macOS, ARM64, unreal-5-6]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Unreal Editor target and verify installed UE
+        shell: bash
+        run: bash unreal/scripts/quest-native-compile-smoke.sh
+      - name: Native qualification summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### Native Unreal build smoke" >> "$GITHUB_STEP_SUMMARY"
+          echo "Runner: self-hosted macOS ARM64 with UE 5.6." >> "$GITHUB_STEP_SUMMARY"
+          echo "This compiles C++; it does not prove mount, offline replay or Quest APK." >> "$GITHUB_STEP_SUMMARY"
