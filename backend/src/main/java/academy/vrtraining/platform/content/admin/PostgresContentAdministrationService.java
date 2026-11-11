@@ -426,9 +426,33 @@ public final class PostgresContentAdministrationService {
                     version = rows.getLong(2);
                 }
             }
-            if (version != expectedVersion || !"DRAFT".equals(previous))
+            if (version != expectedVersion
+                    || !("DRAFT".equals(previous)
+                        || (!"LESSON".equals(kind) && "PUBLISHED".equals(previous)
+                            && "ARCHIVED".equals(requested))))
                 throw new Conflict("Stale version or invalid lifecycle transition");
             if ("PUBLISHED".equals(requested)) {
+                // A published child must not outlive an unpublished parent.
+                if ("AREA".equals(kind)) {
+                    try (var s=db.prepareStatement("SELECT w.status FROM content.catalog_area a "
+                            + "JOIN content.catalog_world w ON w.world_id=a.world_id WHERE a.area_id=?")) {
+                        s.setObject(1,id);
+                        try(var rows=s.executeQuery()) {
+                            if (!rows.next() || !"PUBLISHED".equals(rows.getString(1)))
+                                throw new Conflict("Parent World must be published first");
+                        }
+                    }
+                }
+                if ("SUBJECT".equals(kind)) {
+                    try (var s=db.prepareStatement("SELECT a.status FROM content.catalog_subject t "
+                            + "JOIN content.catalog_area a ON a.area_id=t.area_id WHERE t.subject_id=?")) {
+                        s.setObject(1,id);
+                        try(var rows=s.executeQuery()) {
+                            if (!rows.next() || !"PUBLISHED".equals(rows.getString(1)))
+                                throw new Conflict("Parent Area must be published first");
+                        }
+                    }
+                }
                 String translationTable = switch (kind) {
                     case "WORLD" -> "world_translation";
                     case "AREA" -> "area_translation";
@@ -442,6 +466,25 @@ public final class PostgresContentAdministrationService {
                         rows.next();
                         if (rows.getInt(1) != 3)
                             throw new Conflict("All three localized titles required");
+                    }
+                }
+            }
+            if ("ARCHIVED".equals(requested)) {
+                // Prevent hiding active published descendants from catalog discovery.
+                String descendants = switch (kind) {
+                    case "WORLD" -> "SELECT 1 FROM content.catalog_area "
+                            + "WHERE world_id=? AND status='PUBLISHED' LIMIT 1";
+                    case "AREA" -> "SELECT 1 FROM content.catalog_subject "
+                            + "WHERE area_id=? AND status='PUBLISHED' LIMIT 1";
+                    case "SUBJECT" -> "SELECT 1 FROM content.lesson_placement p "
+                            + "JOIN content.catalog_lesson l ON l.lesson_id=p.lesson_id "
+                            + "WHERE p.subject_id=? AND l.state='PUBLISHED' LIMIT 1";
+                    default -> throw new Conflict("Only taxonomy nodes may be archived");
+                };
+                try (var s=db.prepareStatement(descendants)) {
+                    s.setObject(1,id);
+                    try (var rows=s.executeQuery()) {
+                        if (rows.next()) throw new Conflict("Published descendants block archive");
                     }
                 }
             }
