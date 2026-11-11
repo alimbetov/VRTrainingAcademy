@@ -24,6 +24,7 @@ public class ContentAdminController {
     public record Create(@NotBlank @Size(max=128) String code, int sortOrder) {}
     public record Localize(@NotBlank String locale, @NotBlank @Size(max=160) String title) {}
     public record ChangeStatus(@NotNull String state, long expectedVersion) {}
+    public record Reorder(int sortOrder, long expectedVersion) {}
 
     private final PostgresContentAdministrationService service;
 
@@ -35,6 +36,38 @@ public class ContentAdminController {
         if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank())
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified JWT required");
         return jwt.getSubject();
+    }
+
+    @GetMapping("/worlds")
+    public java.util.List<PostgresContentAdministrationService.NodeView> worlds(
+            @AuthenticationPrincipal Jwt jwt) {
+        return service.worlds(verifiedSubject(jwt));
+    }
+
+    @GetMapping("/worlds/{worldId}/areas")
+    public java.util.List<PostgresContentAdministrationService.NodeView> areas(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID worldId) {
+        return service.areas(verifiedSubject(jwt), worldId);
+    }
+
+    @GetMapping("/areas/{areaId}/subjects")
+    public java.util.List<PostgresContentAdministrationService.NodeView> subjects(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID areaId) {
+        return service.subjects(verifiedSubject(jwt), areaId);
+    }
+
+    @GetMapping("/subjects/{subjectId}/lessons")
+    public java.util.List<PostgresContentAdministrationService.LessonView> lessons(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID subjectId) {
+        return service.lessons(verifiedSubject(jwt), subjectId);
+    }
+
+    @PatchMapping("/{kind}/{nodeId}/order")
+    public PostgresContentAdministrationService.Change reorder(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable String kind,
+            @PathVariable UUID nodeId, @Valid @RequestBody Reorder body) {
+        return service.reorder(verifiedSubject(jwt), kind, nodeId,
+                body.sortOrder(), body.expectedVersion());
     }
 
     @PostMapping("/worlds")
