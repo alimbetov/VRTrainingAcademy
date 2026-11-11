@@ -57,3 +57,35 @@ require a **non-skipped** `Native Unreal C++ smoke` in a dedicated native
 release protection policy. A skipped job must never be presented as native
 success. Keep APK/device qualification as a separately evidenced acceptance
 gate; it cannot be certified by hosted Python tests.
+
+## Added qualification split (R0.2)
+
+The native macOS script now checks the actual installed UE 5.6
+`Engine/Build/Build.version`, runs UBT, and verifies that a non-empty
+`VRTrainingQuest` module artifact was generated. It does not silently
+pass if UE is missing or only source files exist.
+
+The **Android ASTC APK packaging** job is separately gated. To enable it:
+
+1. First qualify native compile with repository variable
+   `VRTA_UNREAL_NATIVE_CI=true`.
+2. Install supported Android SDK/NDK and expose
+   `ANDROID_HOME`, `ANDROID_NDK_ROOT` on the trusted runner.
+3. In UE Editor, save a cookable map at
+   `unreal/VRTrainingQuest/Content/Lessons/Smoke/L_OfflineSmoke.umap`.
+4. Set `VRTA_UNREAL_ANDROID_CI=true` in GitHub Actions variables.
+5. The UAT script builds, cooks, stages, packages and confirms a **nonempty
+   .apk**. It deliberately fails when the smoke map, SDK or UAT is missing.
+
+Both native jobs are restricted to **non-pull_request** events on a
+trusted self-hosted macOS ARM64 runner. Use protected branch policies,
+restrict who may push to branches running the job, and keep runner tokens
+out of arbitrary projects. The native compile job can be **SKIPPED** if
+the runner variable is false, without affecting the contract job.
+
+**CI interpretation:**
+- `Contract smoke: success` = metadata/static-source contracts only.
+- `Native Unreal C++: success` = real C++ module compiled.
+- `Android ASTC: success` = APK packaged (not installed).
+- Real Quest `Mount → Play → Offline Reopen` remains a separately recorded
+  hardware acceptance; no CI branch variable or static test can claim it.
