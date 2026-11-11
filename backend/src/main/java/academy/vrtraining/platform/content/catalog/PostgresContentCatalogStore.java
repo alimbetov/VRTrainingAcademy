@@ -88,6 +88,50 @@ public final class PostgresContentCatalogStore implements ContentCatalogStore {
         } catch (SQLException ex) { throw conflictOrFailure("Lesson creation failed", ex); }
     }
 
+    @Override public Placement createLessonInSubject(String code, String trustedAuthorSubject,
+                                                      UUID worldId, UUID areaId,
+                                                      UUID subjectId, int sortOrder) {
+        requireCode(code);
+        if (trustedAuthorSubject == null || trustedAuthorSubject.isBlank()
+                || trustedAuthorSubject.length() > 255)
+            throw new IllegalArgumentException("Trusted author is required");
+        Objects.requireNonNull(worldId, "worldId");
+        Objects.requireNonNull(areaId, "areaId");
+        Objects.requireNonNull(subjectId, "subjectId");
+        UUID lessonId = UUID.randomUUID();
+        UUID placementId = UUID.randomUUID();
+        try (var db = DriverManager.getConnection(jdbcUrl, user, password)) {
+            db.setAutoCommit(false);
+            try {
+                try (var lesson = db.prepareStatement(
+                         "INSERT INTO content.catalog_lesson(lesson_id,code,created_by_subject) " +
+                         "VALUES (?,?,?)")) {
+                    lesson.setObject(1, lessonId);
+                    lesson.setString(2, code);
+                    lesson.setString(3, trustedAuthorSubject);
+                    lesson.executeUpdate();
+                }
+                try (var placement = db.prepareStatement(
+                         "INSERT INTO content.lesson_placement " +
+                         "(placement_id,lesson_id,world_id,area_id,subject_id,sort_order) " +
+                         "VALUES (?,?,?,?,?,?)")) {
+                    placement.setObject(1, placementId);
+                    placement.setObject(2, lessonId);
+                    placement.setObject(3, worldId);
+                    placement.setObject(4, areaId);
+                    placement.setObject(5, subjectId);
+                    placement.setInt(6, sortOrder);
+                    placement.executeUpdate();
+                }
+                db.commit();
+                return new Placement(placementId, lessonId, worldId, areaId, subjectId, sortOrder);
+            } catch (SQLException ex) {
+                try { db.rollback(); } catch (SQLException rollback) { ex.addSuppressed(rollback); }
+                throw ex;
+            }
+        } catch (SQLException ex) { throw conflictOrFailure("Atomic lesson creation failed", ex); }
+    }
+
     @Override public Placement placeLesson(UUID lessonId, UUID worldId, UUID areaId,
                                           UUID subjectId, int sortOrder) {
         Objects.requireNonNull(lessonId, "lessonId");
