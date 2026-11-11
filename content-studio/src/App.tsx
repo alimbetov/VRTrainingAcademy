@@ -1,6 +1,8 @@
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {configured,getAccessToken,userManager} from './auth';
 import {createAdminApi,type Kind,type Lesson,type Node} from './api';
+import {LessonUploadPanel} from './LessonUploadPanel';
+import {PlacementPanel} from './PlacementPanel';
 
 const locales=['kk-KZ','ru-RU','en-US'] as const;
 type Selection={kind:Kind;id:string;code:string;state:string;version:number;sortOrder:number};
@@ -11,6 +13,7 @@ export function App(){
  const [areas,setAreas]=useState<Node[]>([]);
  const [subjects,setSubjects]=useState<Node[]>([]);
  const [lessons,setLessons]=useState<Lesson[]>([]);
+ const [subjectChoice,setSubjectChoice]=useState<Node|null>(null);
  const [world,setWorld]=useState<Node|null>(null);
  const [area,setArea]=useState<Node|null>(null);
  const [selected,setSelected]=useState<Selection|null>(null);
@@ -41,7 +44,7 @@ export function App(){
  useEffect(()=>{void refresh()},[refresh]);
  const pickWorld=async(w:Node)=>{try{setError('');setWorld(w);setArea(null);setSubjects([]);setLessons([]);setSelected({...w,kind:'WORLD'});setNewKind('AREA');setAreas(await api.areas(w.id))}catch(e){fail(e)}};
  const pickArea=async(a:Node)=>{try{setError('');setArea(a);setLessons([]);setSelected({...a,kind:'AREA'});setNewKind('SUBJECT');setSubjects(await api.subjects(a.id))}catch(e){fail(e)}};
- const pickSubject=async(s:Node)=>{try{setError('');setSelected({...s,kind:'SUBJECT'});setNewKind('LESSON');setLessons(await api.lessons(s.id))}catch(e){fail(e)}};
+ const pickSubject=async(s:Node)=>{try{setError('');setSelected({...s,kind:'SUBJECT'});setSubjectChoice(s);setNewKind('LESSON');setLessons(await api.lessons(s.id))}catch(e){fail(e)}};
  const execute=async(action:()=>Promise<unknown>,message:string)=>{setLoading(true);setError('');setNotice('');try{await action();setNotice(message);await refresh()}catch(e){fail(e)}finally{setLoading(false)}};
  const create=()=>execute(async()=>{
   if(!code.trim())throw new Error('Введите код');
@@ -78,6 +81,6 @@ export function App(){
  <section><h4>Действия и статусы</h4><div className="toolbar">{selected.kind!=='LESSON'&&<button disabled={loading} onClick={sort}>Изменить порядок</button>}{selected.state==='DRAFT'&&<button disabled={loading} onClick={()=>transition(selected.kind==='LESSON'?'READY_FOR_REVIEW':'PUBLISHED')}>{selected.kind==='LESSON'?'Отправить на проверку':'Опубликовать раздел'}</button>}
  {selected.kind!=='LESSON'&&selected.state==='PUBLISHED'&&<button disabled={loading} onClick={()=>transition('ARCHIVED')}>Архивировать раздел</button>}</div><p className="muted">Публикация VR-пакета недоступна без независимой сертификации.</p></section></>}
  {selected?.kind==='SUBJECT'&&<section><h4>Уроки выбранного раздела</h4>{lessons.length===0&&<p className="muted">Пока нет уроков.</p>}{lessons.map(l=><div className="entry" key={l.id}><button onClick={()=>setSelected({...l,kind:'LESSON'})}>{l.code}</button><span className="muted">{l.state}</span></div>)}</section>}
- {selected?.kind==='LESSON'&&<section><h4>VR Releases</h4><p className="muted">Загрузка будет подключена через защищённый UploadSession R5.4. Произвольный выбор lessonId/collectionId запрещён.</p></section>}
+ {selected?.kind==='LESSON'&&<section><PlacementPanel lessonId={selected.id} onDone={()=>void refresh()}/><h4>VR Releases</h4>{subjectChoice?<LessonUploadPanel lessonId={selected.id} subjectId={subjectChoice.id}/>:<p className="muted">Выберите раздел перед загрузкой.</p>}</section>}
  </section></div></>}</main></>;
 }
