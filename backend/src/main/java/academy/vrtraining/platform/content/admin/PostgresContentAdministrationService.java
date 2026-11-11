@@ -330,6 +330,59 @@ public final class PostgresContentAdministrationService {
         });
     }
 
+    /** An existing DRAFT lesson may be placed in a second subject by a
+     * trusted CONTENT_ADMIN who is authorized for both the source and target.
+     */
+    public Created addPlacement(String subject, UUID lessonId, UUID targetSubjectId,
+                                int sortOrder) {
+        actor(subject);
+        Objects.requireNonNull(lessonId);
+        Objects.requireNonNull(targetSubjectId);
+        return transact(db -> {
+            UUID targetWorld=worldForSubject(db,targetSubjectId);
+            authorized(db,subject,targetWorld,false);
+            String state;
+            try (var s=db.prepareStatement(
+                    "SELECT state FROM content.catalog_lesson WHERE lesson_id=? FOR UPDATE")) {
+                s.setObject(1,lessonId);
+                try(var rows=s.executeQuery()) {
+                    if(!rows.next()) throw new Conflict("Lesson missing");
+                    state=rows.getString(1);
+                }
+            }
+            if(!"DRAFT".equals(state)) throw new Conflict(
+                    "Only draft lessons may change catalog placements");
+            int current=0;
+            try (var s=db.prepareStatement(
+                    "SELECT DISTINCT world_id FROM content.lesson_placement WHERE lesson_id=?")) {
+                s.setObject(1,lessonId);
+                try(var rows=s.executeQuery()) {
+                    while(rows.next()) {
+                        current++;
+                        authorized(db,subject,(UUID)rows.getObject(1),false);
+                    }
+                }
+            }
+            if(current==0) throw new Conflict("Lesson has no trusted placement");
+            UUID placementId=UUID.randomUUID();
+            try (var s=db.prepareStatement(
+                    "INSERT INTO content.lesson_placement "
+                    + "(placement_id,lesson_id,world_id,area_id,subject_id,sort_order) "
+                    + "SELECT ?,?,a.world_id,t.area_id,t.subject_id,? "
+                    + "FROM content.catalog_subject t JOIN content.catalog_area a "
+                    + "ON a.area_id=t.area_id WHERE t.subject_id=? AND a.world_id=?")) {
+                s.setObject(1,placementId);
+                s.setObject(2,lessonId);
+                s.setInt(3,sortOrder);
+                s.setObject(4,targetSubjectId);
+                s.setObject(5,targetWorld);
+                if(s.executeUpdate()!=1) throw new Conflict("Target subject invalid");
+            }
+            audit(db,subject,"PLACE","LESSON",lessonId,null,placementId.toString());
+            return new Created(placementId,"DRAFT",0);
+        });
+    }
+
     /** All translations are inserted and audited in one transaction.
      * No route or table name comes from client input.
      */
