@@ -188,6 +188,7 @@ public final class LessonUploadSessions {
         }catch(SQLException e){throw new IllegalStateException("Unable to reserve upload",e);}
 
         Path temp=Files.createTempFile("vrta-upload-session-", ".part");
+        boolean completed=false;
         try {
             var sha=MessageDigest.getInstance("SHA-256");
             long total=0;
@@ -231,11 +232,28 @@ public final class LessonUploadSessions {
                     throw e;
                 }
             }catch(SQLException e){throw new IllegalStateException("Cannot finalize staged upload",e);}
+            completed=true;
             return new Staged(id,lessonId,"STAGED",total,digest);
         }catch(java.security.NoSuchAlgorithmException e){
             throw new IllegalStateException(e);
         }finally{
+            if(!completed)markFailed(subject,id);
             Files.deleteIfExists(temp);
+        }
+    }
+
+    private void markFailed(String subject,UUID id) {
+        try(var db=db()) {
+            db.setAutoCommit(false);
+            try(var stmt=db.prepareStatement("UPDATE content.lesson_upload_session "
+                  +"SET state='FAILED',updated_at=now() WHERE upload_id=? "
+                  +"AND created_by_subject=? AND state='UPLOADING'")) {
+                stmt.setObject(1,id);stmt.setString(2,subject);
+                if(stmt.executeUpdate()==1)audit(db,subject,id,"UPLOAD_FAILED","FAILED");
+                db.commit();
+            }catch(SQLException e){db.rollback();}
+        }catch(SQLException ignored) {
+            // A separate crash-recovery worker must detect stale UPLOADING.
         }
     }
 
