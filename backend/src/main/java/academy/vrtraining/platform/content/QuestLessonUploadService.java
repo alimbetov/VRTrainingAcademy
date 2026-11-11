@@ -31,7 +31,7 @@ public final class QuestLessonUploadService {
 
     public record Request(UUID organizationId, String releaseId, String lessonId,
                           String collectionId, String platform, String engineVersion,
-                          String runtimeBuildId, String artifactName, long artifactSizeBytes,
+                          String runtimeBuildId, String entryLevel, String artifactName, long artifactSizeBytes,
                           String sha256Hex) {}
 
     public record Receipt(String releaseId, String artifactName, long sizeBytes,
@@ -96,6 +96,7 @@ public final class QuestLessonUploadService {
                 || !"Android_ASTC".equals(r.platform())
                 || !"5.6".equals(r.engineVersion())
                 || !safeId(r.runtimeBuildId())
+                || !safeEntryLevel(r.entryLevel())
                 || r.artifactName() == null
                 || !r.artifactName().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\\.pak")
                 || r.artifactName().contains("..")
@@ -107,6 +108,12 @@ public final class QuestLessonUploadService {
     private static boolean safeId(String id) {
         return id != null && id.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
                 && !id.contains("..");
+    }
+
+    private static boolean safeEntryLevel(String path) {
+        return path != null && path.length() <= 240
+                && path.matches("/Game/Lessons/(?:[A-Za-z][A-Za-z0-9_]*/)*[A-Za-z][A-Za-z0-9_]*")
+                && !path.contains("..");
     }
 
     private static MessageDigest sha256() {
