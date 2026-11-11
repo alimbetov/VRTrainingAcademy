@@ -132,6 +132,28 @@ class PostgresContentAdministrationServiceIntegrationTest {
                 "Failed attempts must not add audit entries");
     }
 
+    @Test void areaCannotPublishBeforeWorldAndPublishedChildrenBlockArchive() throws Exception {
+        migrate();
+        String suffix=UUID.randomUUID().toString().substring(0,8);
+        String root="publish-"+suffix;
+        grant(root,"PLATFORM_ADMIN",null,null);
+        var svc=service();
+        var world=svc.createWorld(root,"WORLD_PUB_"+suffix,1);
+        var area=svc.createArea(root,world.id(),"AREA_PUB_"+suffix,1);
+        for (var locale : new String[]{"ru-RU","kk-KZ","en-US"}) {
+            svc.translate(root,"WORLD",world.id(),locale,"World "+locale);
+            svc.translate(root,"AREA",area.id(),locale,"Area "+locale);
+        }
+        assertThrows(PostgresContentAdministrationService.Conflict.class,
+                ()->svc.transition(root,"AREA",area.id(),"PUBLISHED",0));
+        svc.transition(root,"WORLD",world.id(),"PUBLISHED",0);
+        svc.transition(root,"AREA",area.id(),"PUBLISHED",0);
+        assertThrows(PostgresContentAdministrationService.Conflict.class,
+                ()->svc.transition(root,"WORLD",world.id(),"ARCHIVED",1));
+        assertEquals("ARCHIVED",svc.transition(root,"AREA",area.id(),"ARCHIVED",1).state());
+        assertEquals("ARCHIVED",svc.transition(root,"WORLD",world.id(),"ARCHIVED",1).state());
+    }
+
     @Test void roleRevocationIsImmediatelyEffectiveAndRollbackPreservesAtomicAudit() throws Exception {
         migrate();
         String suffix=UUID.randomUUID().toString().substring(0,8);
