@@ -11,7 +11,7 @@ PACKAGE = ROOT / "contracts" / "quest-lesson-package.v1.example.json"
 
 def validate_lesson_package(data):
     expected = {"schemaVersion", "releaseId", "lessonId", "collectionId",
-                "targetPlatform", "runtimeMinVersion", "engineVersion",
+                "targetPlatform", "runtimeMinVersion", "runtimeBuildId", "engineVersion",
                 "entryLevel", "installMode", "artifacts"}
     if not isinstance(data, dict) or set(data) != expected:
         raise ValueError("Invalid manifest fields")
@@ -26,6 +26,8 @@ def validate_lesson_package(data):
         raise ValueError("Invalid UE version")
     if not isinstance(data["runtimeMinVersion"], str) or not re.fullmatch(r"\d+\.\d+\.\d+", data["runtimeMinVersion"]):
         raise ValueError("Invalid Runtime version")
+    if not isinstance(data["runtimeBuildId"], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", data["runtimeBuildId"]):
+        raise ValueError("Invalid runtime build ID")
     path = data["entryLevel"]
     if not isinstance(path, str) or not path.startswith("/Game/Lessons/") or ".." in path or "\\" in path:
         raise ValueError("Unsafe level path")
@@ -66,6 +68,7 @@ class QuestNativeFoundationTest(unittest.TestCase):
         for mutation in (
             {"entryLevel": "/Game/Lessons/../Admin"},
             {"targetPlatform": "Windows"},
+            {"runtimeBuildId": "../unsupported"},
             {"installMode": "execute-apk"},
             {"schemaVersion": "vrta.lesson-package.v999"},
             {"entryLevel": "/Other/Level"},
