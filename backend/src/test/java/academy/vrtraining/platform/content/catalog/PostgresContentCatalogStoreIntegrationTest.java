@@ -127,6 +127,24 @@ class PostgresContentCatalogStoreIntegrationTest {
         }
     }
 
+    @Test void localizedTitlesPersistAndEnforceParentAndLocale() throws Exception {
+        migrate();
+        var store = store();
+        var world = store.createWorld("WORLD_LOCALE_" + UUID.randomUUID().toString().substring(0, 8), 5);
+        store.upsertTranslation(ContentCatalogStore.NodeKind.WORLD, world.id(), "ru-RU", "Школа", null);
+        store.upsertTranslation(ContentCatalogStore.NodeKind.WORLD, world.id(), "kk-KZ", "Мектеп", null);
+        assertEquals(2, store.translations(ContentCatalogStore.NodeKind.WORLD, world.id()).size());
+        store.upsertTranslation(ContentCatalogStore.NodeKind.WORLD, world.id(), "ru-RU", "Учебная школа", null);
+        assertEquals("Учебная школа", store.translations(ContentCatalogStore.NodeKind.WORLD, world.id())
+                .stream().filter(item -> item.locale().equals("ru-RU")).findFirst().orElseThrow().title());
+        assertThrows(IllegalArgumentException.class, () -> store.upsertTranslation(
+                ContentCatalogStore.NodeKind.WORLD, world.id(), "de-DE", "Schule", null));
+        assertThrows(IllegalArgumentException.class, () -> store.upsertTranslation(
+                ContentCatalogStore.NodeKind.WORLD, UUID.randomUUID(), "ru-RU", "Призрак", null));
+        assertThrows(IllegalArgumentException.class, () -> store.upsertTranslation(
+                ContentCatalogStore.NodeKind.AREA, world.id(), "ru-RU", "Другой тип узла", null));
+    }
+
     @Test void concurrentPlacementsHaveExactlyOneWinner() throws Exception {
         migrate();
         var store = store();
