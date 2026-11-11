@@ -43,20 +43,6 @@ CREATE TABLE IF NOT EXISTS content.catalog_subject (
     CONSTRAINT ck_cat_subject_status CHECK (status IN ('DRAFT','PUBLISHED','ARCHIVED'))
 );
 
-CREATE TABLE IF NOT EXISTS content.catalog_translation (
-    node_kind varchar(10) NOT NULL,
-    node_id uuid NOT NULL,
-    locale varchar(5) NOT NULL,
-    title varchar(160) NOT NULL,
-    description varchar(2000),
-    CONSTRAINT pk_catalog_translation PRIMARY KEY (node_kind, node_id, locale),
-    CONSTRAINT ck_cat_translation_kind CHECK (node_kind IN ('WORLD','AREA','SUBJECT','LESSON')),
-    CONSTRAINT ck_cat_translation_locale CHECK (locale IN ('kk-KZ','ru-RU','en-US')),
-    CONSTRAINT ck_cat_translation_title CHECK (length(trim(title)) > 0)
-);
--- Polymorphic translations are not granted publication authority by themselves.
--- Service inserts translations only after the trusted parent row is resolved.
-
 CREATE TABLE IF NOT EXISTS content.catalog_lesson (
     lesson_id uuid PRIMARY KEY,
     code varchar(128) NOT NULL UNIQUE,
@@ -67,6 +53,37 @@ CREATE TABLE IF NOT EXISTS content.catalog_lesson (
     CONSTRAINT ck_cat_lesson_code CHECK (code ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' AND position('..' in code) = 0),
     CONSTRAINT ck_cat_lesson_status CHECK (state IN ('DRAFT','READY_FOR_REVIEW','APPROVED','PUBLISHED','ARCHIVED')),
     CONSTRAINT ck_cat_lesson_author CHECK (length(trim(created_by_subject)) > 0)
+);
+
+-- Separate translation relations guarantee genuine parent foreign keys.
+-- No polymorphic node_kind/node_id dangling references.
+CREATE TABLE IF NOT EXISTS content.world_translation (
+    world_id uuid NOT NULL REFERENCES content.catalog_world(world_id) ON DELETE RESTRICT,
+    locale varchar(5) NOT NULL CHECK (locale IN ('kk-KZ','ru-RU','en-US')),
+    title varchar(160) NOT NULL CHECK (length(trim(title)) > 0),
+    description varchar(2000),
+    PRIMARY KEY (world_id, locale)
+);
+CREATE TABLE IF NOT EXISTS content.area_translation (
+    area_id uuid NOT NULL REFERENCES content.catalog_area(area_id) ON DELETE RESTRICT,
+    locale varchar(5) NOT NULL CHECK (locale IN ('kk-KZ','ru-RU','en-US')),
+    title varchar(160) NOT NULL CHECK (length(trim(title)) > 0),
+    description varchar(2000),
+    PRIMARY KEY (area_id, locale)
+);
+CREATE TABLE IF NOT EXISTS content.subject_translation (
+    subject_id uuid NOT NULL REFERENCES content.catalog_subject(subject_id) ON DELETE RESTRICT,
+    locale varchar(5) NOT NULL CHECK (locale IN ('kk-KZ','ru-RU','en-US')),
+    title varchar(160) NOT NULL CHECK (length(trim(title)) > 0),
+    description varchar(2000),
+    PRIMARY KEY (subject_id, locale)
+);
+CREATE TABLE IF NOT EXISTS content.lesson_translation (
+    lesson_id uuid NOT NULL REFERENCES content.catalog_lesson(lesson_id) ON DELETE RESTRICT,
+    locale varchar(5) NOT NULL CHECK (locale IN ('kk-KZ','ru-RU','en-US')),
+    title varchar(160) NOT NULL CHECK (length(trim(title)) > 0),
+    description varchar(2000),
+    PRIMARY KEY (lesson_id, locale)
 );
 
 CREATE TABLE IF NOT EXISTS content.lesson_placement (
