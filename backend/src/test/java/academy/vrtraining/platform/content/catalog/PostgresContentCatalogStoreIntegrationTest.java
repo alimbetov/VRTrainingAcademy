@@ -127,6 +127,26 @@ class PostgresContentCatalogStoreIntegrationTest {
         }
     }
 
+    @Test void treeCanBeReadAfterRestartWithStableOrdering() throws Exception {
+        migrate();
+        var author = store();
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        var w = author.createWorld("WORLD_TREE_" + suffix, 7);
+        var area1 = author.createArea(w.id(), "AREA_B_" + suffix, 20);
+        var area2 = author.createArea(w.id(), "AREA_A_" + suffix, 10);
+        var subject = author.createSubject(area2.id(), "SUBJECT_TREE_" + suffix, 8);
+        var reader = store();
+        assertTrue(reader.worlds().stream().anyMatch(n -> n.id().equals(w.id())));
+        var areas = reader.areas(w.id());
+        assertEquals(area2.id(), areas.stream().filter(n -> n.id().equals(area2.id()))
+                .findFirst().orElseThrow().id());
+        assertTrue(areas.indexOf(areas.stream().filter(n -> n.id().equals(area2.id()))
+                .findFirst().orElseThrow()) < areas.indexOf(areas.stream().filter(n ->
+                n.id().equals(area1.id())).findFirst().orElseThrow()));
+        assertEquals(subject.id(), reader.subjects(area2.id()).getFirst().id());
+        assertTrue(reader.subjects(area1.id()).stream().noneMatch(n -> n.id().equals(subject.id())));
+    }
+
     @Test void localizedTitlesPersistAndEnforceParentAndLocale() throws Exception {
         migrate();
         var store = store();
