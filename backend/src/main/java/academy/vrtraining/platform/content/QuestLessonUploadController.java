@@ -1,7 +1,7 @@
 package academy.vrtraining.platform.content;
 
 import java.io.IOException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,7 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 /** Private owner/authoring upload, disabled unless quarantine storage is configured. */
 @RestController
-@ConditionalOnBean(QuestLessonUploadService.class)
+@ConditionalOnProperty(name="vr.upload.enabled", havingValue="true")
 @RequestMapping("/api/v1/content/quest/staging")
 public class QuestLessonUploadController {
     private final QuestLessonUploadService uploads;
