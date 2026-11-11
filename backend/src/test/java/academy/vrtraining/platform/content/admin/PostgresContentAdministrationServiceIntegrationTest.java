@@ -65,12 +65,22 @@ class PostgresContentAdministrationServiceIntegrationTest {
         var world=svc.createWorld(root,"WORLD_R52_"+suffix,10);
         grant(admin,"CONTENT_ADMIN",world.id(),null);
         grant(author,"CONTENT_AUTHOR",world.id(),null);
+        assertTrue(svc.worlds(admin).stream().anyMatch(x->x.id().equals(world.id())));
+        assertFalse(svc.worlds(author).stream().noneMatch(x->x.id().equals(world.id())));
+        assertEquals(0,svc.worlds("stranger-"+suffix).size());
         var area=svc.createArea(admin,world.id(),"AREA_PHYS_"+suffix,2);
         var subject=svc.createSubject(admin,area.id(),"SUBJECT_PHYS_"+suffix,2);
         var lesson=svc.createLesson(author,subject.id(),"PHY_001_"+suffix,1);
+        assertTrue(svc.areas(author,world.id()).stream().anyMatch(x->x.id().equals(area.id())));
+        assertTrue(svc.subjects(author,area.id()).stream().anyMatch(x->x.id().equals(subject.id())));
+        assertEquals(lesson.id(),svc.lessons(author,subject.id()).getFirst().id());
+        assertThrows(PostgresContentAdministrationService.Conflict.class,
+                ()->svc.reorder(admin,"AREA",area.id(),7,99));
+        assertEquals(1,svc.reorder(admin,"AREA",area.id(),7,0).version());
+
         assertEquals("DRAFT",lesson.state());
         assertEquals(1,auditCount(world.id()));
-        assertEquals(1,auditCount(area.id()));
+        assertEquals(2,auditCount(area.id()));
         assertEquals(1,auditCount(subject.id()));
         assertEquals(1,auditCount(lesson.id()));
 
@@ -114,6 +124,8 @@ class PostgresContentAdministrationServiceIntegrationTest {
         assertThrows(SecurityException.class, ()->svc.createWorld("rogue-"+suffix,"WORLD_EVIL2_"+suffix,1));
         assertThrows(SecurityException.class, ()->svc.createArea("rogue-"+suffix,worldA.id(),"AREA_EVIL_"+suffix,1));
         assertThrows(SecurityException.class, ()->svc.translate(editor,"WORLD",worldB.id(),"ru-RU","Чужой мир"));
+        assertThrows(SecurityException.class, ()->svc.areas(editor,worldB.id()));
+        assertTrue(svc.worlds(editor).stream().noneMatch(x->x.id().equals(worldB.id())));
         assertThrows(PostgresContentAdministrationService.Conflict.class,
                 ()->svc.createSubject(root,UUID.randomUUID(),"ORPHAN_"+suffix,1));
         assertEquals(0,auditCount(worldA.id())-1,
