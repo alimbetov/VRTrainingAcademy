@@ -101,6 +101,32 @@ class PostgresContentCatalogStoreIntegrationTest {
         }
     }
 
+    @Test void atomicLessonCreationUnderSubjectRollsBackOnWrongTree() throws Exception {
+        migrate();
+        var store = store();
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        var world = store.createWorld("WORLD_ATOMIC_" + suffix, 1);
+        var area = store.createArea(world.id(), "AREA_ATOMIC_" + suffix, 1);
+        var subject = store.createSubject(area.id(), "SUBJECT_ATOMIC_" + suffix, 1);
+        var unrelated = store.createWorld("WORLD_UNRELATED_" + suffix, 1);
+        var saved = store.createLessonInSubject("LESSON_ATOMIC_" + suffix, "author",
+                world.id(), area.id(), subject.id(), 10);
+        assertEquals(1, store.lessonsInSubject(world.id(), area.id(), subject.id()).stream()
+                .filter(x -> x.lessonId().equals(saved.lessonId())).count());
+        String invalidCode = "LESSON_SHOULD_ROLLBACK_" + suffix;
+        assertThrows(IllegalArgumentException.class, () -> store.createLessonInSubject(
+                invalidCode, "author", unrelated.id(), area.id(), subject.id(), 10));
+        try (var db = DriverManager.getConnection(url, user, password);
+             var stmt = db.prepareStatement(
+                     "SELECT count(*) FROM content.catalog_lesson WHERE code=?")) {
+            stmt.setString(1, invalidCode);
+            try (var rows = stmt.executeQuery()) {
+                assertTrue(rows.next());
+                assertEquals(0, rows.getInt(1), "No orphan lesson on bad catalog placement");
+            }
+        }
+    }
+
     @Test void concurrentPlacementsHaveExactlyOneWinner() throws Exception {
         migrate();
         var store = store();
