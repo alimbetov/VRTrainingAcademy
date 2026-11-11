@@ -20,7 +20,7 @@ class QuestLessonUploadServiceTest {
     }
     private static QuestLessonUploadService.Request request(byte[] bytes) throws Exception {
         return new QuestLessonUploadService.Request(ORG, "PHY-001-v1", "PHY-001",
-                "PHYSICS_BASIC", "Android_ASTC", "5.6", "0.1.0-foundation",
+                "PHYSICS_BASIC", "Android_ASTC", "5.6", "0.1.0-foundation", "/Game/Lessons/Physics/L_Electricity",
                 "pakchunk1001-Android_ASTC.pak", bytes.length, sha(bytes));
     }
 
@@ -74,12 +74,12 @@ class QuestLessonUploadServiceTest {
                 (path, key) -> count.incrementAndGet());
         var invalid = new QuestLessonUploadService.Request(ORG, good.releaseId(),
                 good.lessonId(), good.collectionId(), "Windows", "5.6",
-                good.runtimeBuildId(), good.artifactName(), good.artifactSizeBytes(), good.sha256Hex());
+                good.runtimeBuildId(), good.entryLevel(), good.artifactName(), good.artifactSizeBytes(), good.sha256Hex());
         assertThrows(IllegalArgumentException.class,
                 () -> s.stage("teacher", invalid, new ByteArrayInputStream(payload)));
         var unsafe = new QuestLessonUploadService.Request(ORG, good.releaseId(),
                 good.lessonId(), good.collectionId(), "Android_ASTC", "5.6",
-                good.runtimeBuildId(), "../evil.pak", good.artifactSizeBytes(), good.sha256Hex());
+                good.runtimeBuildId(), good.entryLevel(), "../evil.pak", good.artifactSizeBytes(), good.sha256Hex());
         assertThrows(IllegalArgumentException.class,
                 () -> s.stage("teacher", unsafe, new ByteArrayInputStream(payload)));
         var oversized = new QuestLessonUploadService.Request(ORG, good.releaseId(),
