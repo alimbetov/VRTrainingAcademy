@@ -16,6 +16,9 @@ public interface ContentCatalogStore {
     Node createArea(UUID worldId, String code, int sortOrder);
     Node createSubject(UUID areaId, String code, int sortOrder);
     Lesson createLesson(String code, String trustedAuthorSubject);
+    /** Atomically creates a lesson in one exact World→Area→Subject path. */
+    Placement createLessonInSubject(String code, String trustedAuthorSubject,
+                                   UUID worldId, UUID areaId, UUID subjectId, int sortOrder);
     Placement placeLesson(UUID lessonId, UUID worldId, UUID areaId,
                           UUID subjectId, int sortOrder);
     List<SubjectLesson> lessonsInSubject(UUID worldId, UUID areaId, UUID subjectId);
