@@ -16,6 +16,9 @@ public interface ContentCatalogStore {
 
     void upsertTranslation(NodeKind kind, UUID nodeId, String locale, String title, String description);
     List<Translation> translations(NodeKind kind, UUID nodeId);
+    List<Node> worlds();
+    List<Node> areas(UUID worldId);
+    List<Node> subjects(UUID areaId);
     Node createWorld(String code, int sortOrder);
     Node createArea(UUID worldId, String code, int sortOrder);
     Node createSubject(UUID areaId, String code, int sortOrder);
