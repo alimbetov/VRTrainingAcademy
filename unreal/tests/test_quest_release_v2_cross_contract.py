@@ -48,6 +48,23 @@ class SignedQuestReleaseV2CrossContractTest(unittest.TestCase):
         self.assertEqual(237, len(encoded))
         self.assertEqual(EXPECTED_SHA256, hashlib.sha256(encoded).hexdigest())
 
+    def test_backend_upload_metadata_matches_unreal_release_fixture(self):
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        upload = json.loads((ROOT / "contracts" / "quest-lesson-upload.v1.example.json")
+                            .read_text(encoding="utf-8"))
+        for left, right in (
+            ("releaseId", "releaseId"), ("lessonId", "lessonId"),
+            ("collectionId", "collectionId"), ("platform", "targetPlatform"),
+            ("engineVersion", "engineVersion"),
+            ("runtimeBuildId", "runtimeBuildId"),
+            ("entryLevel", "entryLevel"),
+        ):
+            self.assertEqual(upload[left], data[right], f"Upload/release drift: {left}")
+        artifact = data["artifacts"][0]
+        self.assertEqual(upload["artifactName"], artifact["name"])
+        self.assertEqual(upload["artifactSizeBytes"], artifact["sizeBytes"])
+        self.assertEqual(upload["sha256Hex"], artifact["sha256"])
+
     def test_unreal_runtime_version_and_engine_match_authoring_descriptor(self):
         data = json.loads(FIXTURE.read_text(encoding="utf-8"))
         cpp = (ROOT / "VRTrainingQuest" / "Source" / "VRTrainingQuest" /
