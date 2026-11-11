@@ -84,10 +84,16 @@ class QuestLessonUploadServiceTest {
                 () -> s.stage("teacher", unsafe, new ByteArrayInputStream(payload)));
         var oversized = new QuestLessonUploadService.Request(ORG, good.releaseId(),
                 good.lessonId(), good.collectionId(), "Android_ASTC", "5.6",
-                good.runtimeBuildId(), good.artifactName(),
+                good.runtimeBuildId(), good.entryLevel(), good.artifactName(),
                 QuestLessonUploadService.MAX_ARTIFACT_BYTES + 1, good.sha256Hex());
         assertThrows(IllegalArgumentException.class,
                 () -> s.stage("teacher", oversized, new ByteArrayInputStream(payload)));
+        var escapedLevel = new QuestLessonUploadService.Request(ORG, good.releaseId(),
+                good.lessonId(), good.collectionId(), "Android_ASTC", "5.6",
+                good.runtimeBuildId(), "/Game/Lessons/../Private", good.artifactName(),
+                good.artifactSizeBytes(), good.sha256Hex());
+        assertThrows(IllegalArgumentException.class,
+                () -> s.stage("teacher", escapedLevel, new ByteArrayInputStream(payload)));
         assertEquals(0, count.get());
     }
 }
