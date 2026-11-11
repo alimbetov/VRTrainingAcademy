@@ -54,6 +54,18 @@ public final class SignedQuestReleaseV2 {
         }
     }
 
+    /** Bridge from verified upload metadata into the single-artifact v2 candidate.
+     * Calling this method DOES NOT issue a trusted publisher signature or
+     * hardware compatibility certification.
+     */
+    public static Release fromUpload(QuestLessonUploadService.Request request) {
+        QuestLessonUploadService.validate(request);
+        return new Release(request.releaseId(), request.lessonId(), request.collectionId(),
+                request.platform(), request.engineVersion(), request.runtimeBuildId(),
+                request.entryLevel(), List.of(new Artifact(request.artifactName(),
+                        request.artifactSizeBytes(), request.sha256Hex())));
+    }
+
     public static byte[] canonicalBytes(Release release) {
         Objects.requireNonNull(release);
         try {
