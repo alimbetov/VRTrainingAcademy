@@ -2,6 +2,7 @@ import {useCallback,useEffect,useMemo,useState} from 'react';
 import {configured,getAccessToken,userManager} from './auth';
 import {createAdminApi,type Kind,type Lesson,type Node} from './api';
 import {LessonUploadPanel} from './LessonUploadPanel';
+import {PlacementPanel} from './PlacementPanel';
 
 const locales=['kk-KZ','ru-RU','en-US'] as const;
 type Selection={kind:Kind;id:string;code:string;state:string;version:number;sortOrder:number};
@@ -80,6 +81,6 @@ export function App(){
  <section><h4>Действия и статусы</h4><div className="toolbar">{selected.kind!=='LESSON'&&<button disabled={loading} onClick={sort}>Изменить порядок</button>}{selected.state==='DRAFT'&&<button disabled={loading} onClick={()=>transition(selected.kind==='LESSON'?'READY_FOR_REVIEW':'PUBLISHED')}>{selected.kind==='LESSON'?'Отправить на проверку':'Опубликовать раздел'}</button>}
  {selected.kind!=='LESSON'&&selected.state==='PUBLISHED'&&<button disabled={loading} onClick={()=>transition('ARCHIVED')}>Архивировать раздел</button>}</div><p className="muted">Публикация VR-пакета недоступна без независимой сертификации.</p></section></>}
  {selected?.kind==='SUBJECT'&&<section><h4>Уроки выбранного раздела</h4>{lessons.length===0&&<p className="muted">Пока нет уроков.</p>}{lessons.map(l=><div className="entry" key={l.id}><button onClick={()=>setSelected({...l,kind:'LESSON'})}>{l.code}</button><span className="muted">{l.state}</span></div>)}</section>}
- {selected?.kind==='LESSON'&&<section><h4>VR Releases</h4>{subjectChoice?<LessonUploadPanel lessonId={selected.id} subjectId={subjectChoice.id}/>:<p className="muted">Выберите раздел перед загрузкой.</p>}</section>}
+ {selected?.kind==='LESSON'&&<section><PlacementPanel lessonId={selected.id} onDone={()=>void refresh()}/><h4>VR Releases</h4>{subjectChoice?<LessonUploadPanel lessonId={selected.id} subjectId={subjectChoice.id}/>:<p className="muted">Выберите раздел перед загрузкой.</p>}</section>}
  </section></div></>}</main></>;
 }
