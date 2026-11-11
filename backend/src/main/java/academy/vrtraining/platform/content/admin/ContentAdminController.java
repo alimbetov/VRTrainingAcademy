@@ -101,6 +101,14 @@ public class ContentAdminController {
         return service.createLesson(verifiedSubject(jwt), subjectId, body.code(), body.sortOrder());
     }
 
+    @PostMapping("/lessons/{lessonId}/placements/{subjectId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PostgresContentAdministrationService.Created place(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId,
+            @PathVariable UUID subjectId, @Valid @RequestBody Reorder body) {
+        return service.addPlacement(verifiedSubject(jwt),lessonId,subjectId,body.sortOrder());
+    }
+
     @PutMapping("/{kind}/{nodeId}/translations/{locale}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void translate(@AuthenticationPrincipal Jwt jwt, @PathVariable String kind,
