@@ -128,7 +128,8 @@ class PostgresContentAdministrationServiceIntegrationTest {
         var svc=service();
         var world=svc.createWorld(root,"WORLD_LOCK_"+suffix,1);
         grant(editor,"CONTENT_ADMIN",world.id(),null);
-        svc.createArea(editor,world.id(),"AREA_DUP_"+suffix,1);
+        var activeArea=svc.createArea(editor,world.id(),"AREA_DUP_"+suffix,1);
+        var activeSubject=svc.createSubject(editor,activeArea.id(),"SUBJECT_ACTIVE_"+suffix,1);
         assertThrows(PostgresContentAdministrationService.Conflict.class,
                 ()->svc.createArea(editor,world.id(),"AREA_DUP_"+suffix,1));
         try (var db=DriverManager.getConnection(url,user,password);
@@ -139,7 +140,7 @@ class PostgresContentAdministrationServiceIntegrationTest {
         }
         assertThrows(SecurityException.class,
                 ()->svc.createArea(editor,world.id(),"AREA_AFTER_REVOKE_"+suffix,1));
-        assertThrows(SecurityException.class, ()->svc.createLesson(editor,UUID.randomUUID(),
+        assertThrows(SecurityException.class, ()->svc.createLesson(editor,activeSubject.id(),
                 "LESSON_DENIED_"+suffix,1));
         assertEquals(1,auditCount(world.id()));
     }
