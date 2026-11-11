@@ -14,5 +14,6 @@
       "sizeBytes": 125000000,
       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
-  ]
+  ],
+  "runtimeBuildId": "0.1.0-foundation"
 }
