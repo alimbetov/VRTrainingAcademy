@@ -25,6 +25,36 @@ public final class PostgresContentCatalogStore implements ContentCatalogStore {
         this.password = Objects.requireNonNull(password);
     }
 
+    @Override public List<Node> worlds() {
+        return queryNodes("SELECT world_id,code,status,sort_order FROM content.catalog_world "
+                + "ORDER BY sort_order,code", null, false);
+    }
+
+    @Override public List<Node> areas(UUID worldId) {
+        return queryNodes("SELECT area_id,code,status,sort_order FROM content.catalog_area "
+                + "WHERE world_id=? ORDER BY sort_order,code", Objects.requireNonNull(worldId), true);
+    }
+
+    @Override public List<Node> subjects(UUID areaId) {
+        return queryNodes("SELECT subject_id,code,status,sort_order FROM content.catalog_subject "
+                + "WHERE area_id=? ORDER BY sort_order,code", Objects.requireNonNull(areaId), true);
+    }
+
+    private List<Node> queryNodes(String sql, UUID parentId, boolean scoped) {
+        var result = new ArrayList<Node>();
+        try (var db = DriverManager.getConnection(jdbcUrl, user, password);
+             var stmt = db.prepareStatement(sql)) {
+            if (scoped) stmt.setObject(1, parentId);
+            try (var rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new Node((UUID) rs.getObject(1), parentId,
+                            rs.getString(2), rs.getString(3), rs.getInt(4)));
+                }
+            }
+        } catch (SQLException ex) { throw new IllegalStateException("Catalog tree query failed", ex); }
+        return List.copyOf(result);
+    }
+
     @Override public void upsertTranslation(NodeKind kind, UUID nodeId, String locale,
                                              String title, String description) {
         Objects.requireNonNull(nodeId, "nodeId");
