@@ -105,7 +105,7 @@ class LessonUploadSessionsIntegrationTest {
         assertThrows(IllegalArgumentException.class,()->service.stage(f.author(),
                 session.uploadId(),metadata(bytes),new ByteArrayInputStream(new byte[]{1,2,3,5})));
         assertEquals(0,writes.get());
-        assertEquals("UPLOADING",service.status(f.author(),session.uploadId()).state(),
+        assertEquals("FAILED",service.status(f.author(),session.uploadId()).state(),
                "Failed transfer must not be reported as STAGED or certified");
     }
 }
