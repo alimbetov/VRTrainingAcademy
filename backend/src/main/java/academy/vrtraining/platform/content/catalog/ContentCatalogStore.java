@@ -5,6 +5,8 @@ import java.util.UUID;
 
 /** R5.1 write boundary: trusted caller must authorize actions before invoking. */
 public interface ContentCatalogStore {
+    enum NodeKind { WORLD, AREA, SUBJECT, LESSON }
+    record Translation(String locale, String title, String description) {}
     record Node(UUID id, UUID parentId, String code, String status, int sortOrder) {}
     record Lesson(UUID id, String code, String state, String authorSubject) {}
     record Placement(UUID id, UUID lessonId, UUID worldId, UUID areaId,
@@ -12,6 +14,8 @@ public interface ContentCatalogStore {
     record SubjectLesson(UUID lessonId, String code, String state, UUID placementId,
                          int sortOrder) {}
 
+    void upsertTranslation(NodeKind kind, UUID nodeId, String locale, String title, String description);
+    List<Translation> translations(NodeKind kind, UUID nodeId);
     Node createWorld(String code, int sortOrder);
     Node createArea(UUID worldId, String code, int sortOrder);
     Node createSubject(UUID areaId, String code, int sortOrder);
