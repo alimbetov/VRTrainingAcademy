@@ -81,13 +81,13 @@ class QuestLessonUploadServiceTest {
                 good.lessonId(), good.collectionId(), "Android_ASTC", "5.6",
                 good.runtimeBuildId(), "../evil.pak", good.artifactSizeBytes(), good.sha256Hex());
         assertThrows(IllegalArgumentException.class,
-                () -> s.stage("teacher", invalid, new ByteArrayInputStream(payload)));
+                () -> s.stage("teacher", unsafe, new ByteArrayInputStream(payload)));
         var oversized = new QuestLessonUploadService.Request(ORG, good.releaseId(),
                 good.lessonId(), good.collectionId(), "Android_ASTC", "5.6",
                 good.runtimeBuildId(), good.artifactName(),
                 QuestLessonUploadService.MAX_ARTIFACT_BYTES + 1, good.sha256Hex());
         assertThrows(IllegalArgumentException.class,
-                () -> s.stage("teacher", invalid, new ByteArrayInputStream(payload)));
+                () -> s.stage("teacher", oversized, new ByteArrayInputStream(payload)));
         assertEquals(0, count.get());
     }
 }
